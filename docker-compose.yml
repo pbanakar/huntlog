@@ -1,0 +1,34 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: huntlog-mysql
+    environment:
+      MYSQL_DATABASE: huntlog
+      MYSQL_USER: huntlog
+      MYSQL_PASSWORD: huntlog
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - huntlog-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "huntlog", "-phuntlog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: huntlog-app
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/huntlog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USER: huntlog
+      DB_PASS: huntlog
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  huntlog-mysql-data:

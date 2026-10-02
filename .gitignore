@@ -1,0 +1,46 @@
+# === AI tools config ===
+.claude/
+.agents/
+_bmad/
+skills/
+skills-lock.json
+
+# === Build output ===
+target/
+
+# === IDE ===
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Maven ===
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# === Logs ===
+*.log
+logs/
+
+# === BMad (generated scripts — custom/ is kept) ===
+_bmad/scripts/
+_bmad/core-tools/
+_bmad/method/
+
+# === Environment / secrets ===
+.env
+.env.*
+!.env.example

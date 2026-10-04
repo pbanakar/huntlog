@@ -2,6 +2,7 @@
 .claude/
 .agents/
 _bmad/
+_bmad-output/
 skills/
 skills-lock.json
 

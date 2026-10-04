@@ -14,3 +14,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-key-minimum-256-bits-long-change-in-production-environment}
+    expiration-ms: 86400000  # 24 hours

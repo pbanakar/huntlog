@@ -1,58 +1,37 @@
 # HuntLog
 
-Job Application Tracker REST API built with Spring Boot 3, Java 21, and MySQL.
+Job Application Tracker REST API built with **Java 21**, **Spring Boot 3.4.1**, **Spring Security (JWT)**, **Spring Data JPA**, **Flyway**, and **MySQL 8.0**.
 
-> 📘 **Looking for complete setup instructions, state machine diagrams, and cURL/PowerShell examples? Check out the [Comprehensive User & Developer Guide](file:///c:/projects/Huntlog/GUIDE.md).**
+---
 
-## Quick Start
+## 📚 Documentation
 
-```bash
-# 1. Clone and navigate
-git clone https://github.com/pbanakar/huntlog.git && cd huntlog
+- 🚀 **[User & Beginner Guide](file:///c:/projects/Huntlog/GUIDE.md)**: How to run the application, full end-to-end API walkthroughs, PowerShell/cURL examples, and troubleshooting.
+- 🏛️ **[Architecture & Technical Design](file:///c:/projects/Huntlog/ARCHITECTURE.md)**: Request flow diagrams, state machine mechanics, security & data isolation models, and database ER schemas.
 
-# 2. Start MySQL + app via Docker Compose
+---
+
+## ⚡ Quick Start
+
+```powershell
+# 1. Package the application
+mvn clean package -DskipTests
+
+# 2. Start MySQL and Spring Boot in Docker
 docker compose up --build -d
 
-# 3. Verify the API is running
-curl http://localhost:8080/api/v1/applications
+# 3. Run the automated test script
+.\test_phase2.ps1
 ```
 
-## Example: Create a New Application
+The API is accessible at: `http://localhost:8080`
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/applications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "company": "Google",
-    "role": "Software Engineer",
-    "jobUrl": "https://careers.google.com/jobs/123",
-    "location": "Mountain View, CA",
-    "notes": "Referred by a friend"
-  }' | jq
-```
+---
 
-**Response** (201 Created):
-```json
-{
-  "id": 1,
-  "company": "Google",
-  "role": "Software Engineer",
-  "status": "APPLIED",
-  "appliedDate": "2026-10-01",
-  "lastUpdated": "2026-10-01T12:00:00.000000",
-  "jobUrl": "https://careers.google.com/jobs/123",
-  "notes": "Referred by a friend",
-  "location": "Mountain View, CA",
-  "allowedNextStatuses": ["SCREENING", "REJECTED", "WITHDRAWN"]
-}
-```
-
-The `allowedNextStatuses` field tells the client exactly which state transitions are valid next — no guessing required.
-
-## Phase Status
+## 📋 Status Tracking
 
 - [x] **Phase 1** — Core CRUD + State Machine
-- [ ] **Phase 2** — Authentication & Authorization
+- [x] **Phase 2** — JWT Authentication & Per-User Data Isolation
 - [ ] **Phase 3** — Email Notifications & Scheduling
 - [ ] **Phase 4** — API Documentation (Swagger/OpenAPI)
 - [ ] **Phase 5** — Frontend Dashboard

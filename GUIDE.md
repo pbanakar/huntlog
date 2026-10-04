@@ -1,226 +1,148 @@
-# 📖 HuntLog — Comprehensive User & Developer Guide
+# 📖 HuntLog — Beginner & User Guide
 
-HuntLog is a production-ready **Job Application Tracker REST API** built with **Java 21**, **Spring Boot 3.4.1**, **Spring Data JPA**, **Flyway**, and **MySQL 8.0**.
+Welcome to **HuntLog**! This guide is designed to get you up and running in minutes, explain how to use every feature end-to-end, and clarify important details about how your data is stored and managed.
 
-This guide covers everything you need to run, use, test, and integrate with the HuntLog API.
-
----
-
-## 📑 Table of Contents
-
-1. [System Architecture](#-system-architecture)
-2. [State Machine & Workflow](#-state-machine--workflow)
-3. [Prerequisites](#-prerequisites)
-4. [How to Run](#-how-to-run)
-   - [Method 1: Full Stack via Docker Compose](#method-1-full-stack-via-docker-compose-fastest)
-   - [Method 2: Local Development with Dockerized MySQL](#method-2-local-development-with-dockerized-mysql-recommended)
-   - [Method 3: Local Maven with Existing Local MySQL](#method-3-local-maven-with-existing-local-mysql)
-5. [Running Tests](#-running-tests)
-6. [API Specification & Endpoints](#-api-specification--endpoints)
-7. [Step-by-Step Usage Examples](#-step-by-step-usage-examples)
-   - [Scenario A: Create an Application (POST)](#1-create-a-job-application)
-   - [Scenario B: List & Filter Applications (GET)](#2-list-and-filter-applications)
-   - [Scenario C: Move through the Hiring Pipeline (PUT)](#3-advance-application-through-the-pipeline)
-   - [Scenario D: Test State Machine Validation (422 Error)](#4-trigger-state-machine-validation-422-error)
-   - [Scenario E: Delete an Application (DELETE)](#5-delete-an-application)
-8. [Configuration & Environment Variables](#-configuration--environment-variables)
-9. [Troubleshooting & FAQs](#-troubleshooting--faqs)
+> 💡 **Looking for technical architecture, database schemas, or state machine internals?** Check out [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
 
 ---
 
-## 🏛 System Architecture
+## 📌 1. Important Things You Should Know
 
-HuntLog follows modern Spring Boot engineering best practices:
+Before running the app, here are a few key concepts:
 
-- **Controller Layer (`com.pbanakar.huntlog.controller`)**: Exposes REST endpoints, validates inputs via `jakarta.validation`, and handles HTTP request/response lifecycles.
-- **Service Layer (`com.pbanakar.huntlog.service`)**: Encapsulates business logic, DTO mapping, and delegates transition validation to the state machine.
-- **State Machine (`com.pbanakar.huntlog.statemachine`)**: An $O(1)$ enum transition validator enforcing valid progression through the hiring funnel.
-- **Persistence Layer (`com.pbanakar.huntlog.repository`)**: Spring Data JPA repositories communicating with MySQL.
-- **Database Migrations (`db/migration`)**: Flyway version-controlled schema definitions.
-- **Global Error Handling (`com.pbanakar.huntlog.exception`)**: Centralized `@RestControllerAdvice` returning standard RFC 7807-style error payloads.
+### Where is the Data Stored?
+- HuntLog uses a **MySQL 8.0** database.
+- When running via Docker, data is saved inside a persistent Docker volume named **`mysql_data`**.
+- This means your data **survives container restarts** — closing or stopping Docker will NOT delete your accounts or job applications.
 
----
+### Why Port 3307 instead of 3306?
+- Many computers (especially Windows) already have local MySQL or dev tools using port `3306`.
+- We map Docker MySQL to port **`3307`** on your host machine to prevent port collisions, while inside Docker the container communicates normally on `3306`.
 
-## 🔄 State Machine & Workflow
-
-HuntLog guarantees that job applications follow realistic lifecycle transitions:
-
-```mermaid
-stateDiagram-v2
-    [*] --> APPLIED : Create Application
-
-    APPLIED --> SCREENING : Recruiter Call
-    APPLIED --> REJECTED : Direct Rejection
-    APPLIED --> WITHDRAWN : Candidate Withdraws
-
-    SCREENING --> INTERVIEW : Passed Screening
-    SCREENING --> REJECTED : Screening Failed
-    SCREENING --> WITHDRAWN : Candidate Withdraws
-
-    INTERVIEW --> OFFER : Passed Interviews
-    INTERVIEW --> REJECTED : Interview Failed
-    INTERVIEW --> WITHDRAWN : Candidate Withdraws
-
-    OFFER --> ACCEPTED : Offer Accepted
-    OFFER --> REJECTED : Offer Rescinded
-    OFFER --> WITHDRAWN : Declined / Withdrawn
-
-    ACCEPTED --> [*] : Terminal State
-    REJECTED --> [*] : Terminal State
-    WITHDRAWN --> [*] : Terminal State
-```
-
-### Transition Rules Table
-
-| Current Status | Allowed Next Statuses | Terminal? |
-|---|---|---|
-| `APPLIED` | `SCREENING`, `REJECTED`, `WITHDRAWN` | ❌ No |
-| `SCREENING` | `INTERVIEW`, `REJECTED`, `WITHDRAWN` | ❌ No |
-| `INTERVIEW` | `OFFER`, `REJECTED`, `WITHDRAWN` | ❌ No |
-| `OFFER` | `ACCEPTED`, `REJECTED`, `WITHDRAWN` | ❌ No |
-| `ACCEPTED` | *None* | ✅ Yes |
-| `REJECTED` | *None* | ✅ Yes |
-| `WITHDRAWN` | *None* | ✅ Yes |
-
-> **Note**: Every API response includes `allowedNextStatuses: [...]` so client UIs can dynamically enable or disable action buttons without hardcoded front-end logic!
+### How Authentication Works:
+- When you register or login, the API returns a signed **JWT token** (a long text string).
+- For all job application actions, you must send this token in the request header:
+  ```http
+  Authorization: Bearer <your-token-here>
+  ```
+- Your applications are completely private. Another user cannot see, edit, or delete your applications.
 
 ---
 
-## 🧰 Prerequisites
+## 🧰 2. Prerequisites
 
-Make sure you have the following installed on your machine:
+Make sure you have these tools installed on your computer:
 
-- **Java JDK 21+**: Verify with `java -version`
-- **Apache Maven 3.9+**: Verify with `mvn -version`
-- **Docker & Docker Compose**: Verify with `docker --version` and `docker compose version`
-- **cURL** or **PowerShell 5.1+** for sending HTTP requests
+1. **Java JDK 21+** (`java -version`)
+2. **Maven 3.9+** (`mvn -version`)
+3. **Docker Desktop** running in the background (`docker --version`)
 
 ---
 
-## 🚀 How to Run
+## 🚀 3. How to Run HuntLog
 
-### Method 1: Full Stack via Docker Compose (Fastest)
+### Method A: Full Stack with Docker Compose (Fastest & Recommended)
 
-Starts both the MySQL database and the Spring Boot application inside Docker containers.
+This starts both the MySQL database and the Spring Boot application inside Docker.
 
 ```powershell
-# 1. Build and start containers in the background
+# Step 1: Build the latest JAR file
+mvn clean package -DskipTests
+
+# Step 2: Start both MySQL and API containers
 docker compose up --build -d
 
-# 2. View logs
-docker compose logs -f
+# Step 3: Check that containers are running
+docker compose ps
+```
 
-# 3. Stop containers when done
+The API will be live at: **`http://localhost:8080`**
+
+To stop the containers when you're done:
+```powershell
 docker compose down
 ```
 
-The API will be available at `http://localhost:8080`.
-
 ---
 
-### Method 2: Local Development with Dockerized MySQL (Recommended)
+### Method B: Local Development Mode
 
-Run MySQL in Docker on port `3307` (to prevent conflict with any local MySQL on `3306`), and run Spring Boot locally for instant debugging and code changes.
+If you are modifying code and want instant reloading:
 
 ```powershell
-# Step 1: Start MySQL in Docker
+# 1. Start only the MySQL database in Docker
 docker compose up mysql -d
 
-# Step 2: Run Spring Boot with Maven
+# 2. Run the Spring Boot app directly on your machine
 mvn spring-boot:run
 ```
 
 ---
 
-### Method 3: Local Maven with Existing Local MySQL
+## 💡 4. End-to-End Walkthrough (Step-by-Step)
 
-If you have a local MySQL instance on port `3306`, create the database and run:
+Open PowerShell and follow these steps to see the entire app in action:
 
-```sql
--- In your MySQL shell:
-CREATE DATABASE IF NOT EXISTS huntlog;
-CREATE USER IF NOT EXISTS 'huntlog'@'%' IDENTIFIED BY 'huntlog';
-GRANT ALL PRIVILEGES ON huntlog.* TO 'huntlog'@'%';
-FLUSH PRIVILEGES;
-```
+---
 
-Then run Spring Boot pointing to port 3306:
+### Step 1: Register a New User Account
+
+Create your account with your name, email, and a password (minimum 8 characters):
 
 ```powershell
-mvn spring-boot:run -Dspring-boot.run.arguments="--spring.datasource.url=jdbc:mysql://localhost:3306/huntlog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+'{"name":"Alice Dev","email":"alice@test.com","password":"password123"}' | `
+  curl.exe -s -X POST http://localhost:8080/api/v1/auth/register `
+  -H "Content-Type: application/json" -d "@-"
+```
+
+**What you receive back (`201 Created`)**:
+```json
+{
+  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhbGljZUB0ZXN0LmNvbSIsInVzZXJJZCI6MSwibmFtZSI6IkFsaWNlIERldiIsImlhdCI6MTc5MTExNDc0NCwiZXhwIjoxNzkxMjAxMTQ0fQ...",
+  "email": "alice@test.com",
+  "name": "Alice Dev"
+}
 ```
 
 ---
 
-## 🧪 Running Tests
+### Step 2: Login and Save Your Token in a Variable
 
-HuntLog has 100% passing automated test coverage across unit tests, service layers, and state machine validation.
+Login to get your JWT access token and store it in PowerShell variable `$token`:
 
 ```powershell
-# Run all unit tests
-mvn test
+$auth = '{"email":"alice@test.com","password":"password123"}' | `
+  curl.exe -s -X POST http://localhost:8080/api/v1/auth/login `
+  -H "Content-Type: application/json" -d "@-" | ConvertFrom-Json
 
-# Run tests and generate verification reports
-mvn verify
+$token = $auth.token
+Write-Host "Logged in successfully! Token starts with: $($token.Substring(0, 20))..."
 ```
 
 ---
 
-## 📡 API Specification & Endpoints
+### Step 3: Create a Job Application
 
-Base URL: `http://localhost:8080/api/v1/applications`
+Add an application you just submitted:
 
-| Method | Endpoint | Description | Status Codes |
-|---|---|---|---|
-| `POST` | `/api/v1/applications` | Create a new job application | `201 Created`, `400 Bad Request` |
-| `GET` | `/api/v1/applications` | List applications (paginated, sorted, filterable) | `200 OK` |
-| `GET` | `/api/v1/applications/{id}` | Get application details by ID | `200 OK`, `404 Not Found` |
-| `PUT` | `/api/v1/applications/{id}` | Update application details or transition status | `200 OK`, `400 Bad Request`, `404 Not Found`, `422 Unprocessable Entity` |
-| `DELETE` | `/api/v1/applications/{id}` | Delete an application | `204 No Content`, `404 Not Found` |
-
----
-
-## 💡 Step-by-Step Usage Examples
-
-### 1. Create a Job Application
-
-#### PowerShell:
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body '{
-    "company": "Google",
-    "role": "Staff Software Engineer",
-    "jobUrl": "https://careers.google.com/jobs/123",
-    "location": "Mountain View, CA",
-    "notes": "Referred by Alex"
-  }'
+'{"company":"Google","role":"Staff Software Engineer","jobUrl":"https://careers.google.com/123","location":"Mountain View, CA","notes":"Referred by Alex"}' | `
+  curl.exe -s -X POST http://localhost:8080/api/v1/applications `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
 ```
 
-#### cURL (Bash / Command Prompt):
-```bash
-curl -X POST http://localhost:8080/api/v1/applications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "company": "Google",
-    "role": "Staff Software Engineer",
-    "jobUrl": "https://careers.google.com/jobs/123",
-    "location": "Mountain View, CA",
-    "notes": "Referred by Alex"
-  }'
-```
-
-#### Response (`201 Created`):
+**Response (`201 Created`)**:
 ```json
 {
   "id": 1,
   "company": "Google",
   "role": "Staff Software Engineer",
   "status": "APPLIED",
-  "appliedDate": "2026-10-02",
-  "lastUpdated": "2026-10-02T13:06:29.196903",
-  "jobUrl": "https://careers.google.com/jobs/123",
+  "appliedDate": "2026-10-04",
+  "lastUpdated": "2026-10-04T11:53:43.489361",
+  "jobUrl": "https://careers.google.com/123",
   "notes": "Referred by Alex",
   "location": "Mountain View, CA",
   "allowedNextStatuses": [
@@ -230,122 +152,88 @@ curl -X POST http://localhost:8080/api/v1/applications \
   ]
 }
 ```
+> Notice `allowedNextStatuses` tells you exactly which stages this application can move to next!
 
 ---
 
-### 2. List and Filter Applications
+### Step 4: View and Filter Your Applications
 
-Supports pagination (`page`, `size`), sorting (`sort=field,asc|desc`), and filtering (`status`, `company`).
+View all applications you have created:
 
-#### PowerShell:
 ```powershell
-# Get all applications (Page 0, 10 items)
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications?page=0&size=10&sort=appliedDate,desc" -Method Get
+# 1. Get all your applications (Page 0, 10 items per page)
+curl.exe -s -X GET "http://localhost:8080/api/v1/applications?page=0&size=10" `
+  -H "Authorization: Bearer $token"
 
-# Filter by company and status
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications?company=Google&status=APPLIED" -Method Get
+# 2. Filter by company name (e.g. Google)
+curl.exe -s -X GET "http://localhost:8080/api/v1/applications?company=Google" `
+  -H "Authorization: Bearer $token"
+
+# 3. Filter by status (e.g. APPLIED)
+curl.exe -s -X GET "http://localhost:8080/api/v1/applications?status=APPLIED" `
+  -H "Authorization: Bearer $token"
 ```
 
-#### cURL:
-```bash
-curl "http://localhost:8080/api/v1/applications?page=0&size=10&sort=appliedDate,desc"
+---
+
+### Step 5: Advance Application Through the Hiring Pipeline
+
+As you make progress in your hiring process, update the application status:
+
+#### Stage 1: Recruiter Phone Screening
+```powershell
+'{"status":"SCREENING","notes":"Passed initial screening, scheduling tech round"}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
 ```
 
-#### Response (`200 OK`):
+#### Stage 2: Technical Interview
+```powershell
+'{"status":"INTERVIEW","notes":"Completed System Design & Coding rounds"}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+#### Stage 3: Job Offer!
+```powershell
+'{"status":"OFFER","notes":"Received written offer letter with equity package"}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+#### Stage 4: Accept Offer (Terminal State)
+```powershell
+'{"status":"ACCEPTED","notes":"Offer signed! Start date in November."}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+---
+
+### Step 6: Test State Machine Validation (422 Guard)
+
+Try to make an illegal leap (for example, attempting to jump directly from `APPLIED` to `OFFER`):
+
+```powershell
+'{"status":"OFFER"}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+**What the API returns (`422 Unprocessable Entity`)**:
 ```json
 {
-  "content": [
-    {
-      "id": 1,
-      "company": "Google",
-      "role": "Staff Software Engineer",
-      "status": "APPLIED",
-      "appliedDate": "2026-10-02",
-      "lastUpdated": "2026-10-02T13:06:29.196903",
-      "jobUrl": "https://careers.google.com/jobs/123",
-      "notes": "Referred by Alex",
-      "location": "Mountain View, CA",
-      "allowedNextStatuses": ["SCREENING", "REJECTED", "WITHDRAWN"]
-    }
-  ],
-  "pageable": {
-    "pageNumber": 0,
-    "pageSize": 10
-  },
-  "totalElements": 1,
-  "totalPages": 1,
-  "last": true
-}
-```
-
----
-
-### 3. Advance Application through the Pipeline
-
-To transition an application to the next stage (or update fields such as salary/notes):
-
-#### Transition: `APPLIED` ➔ `SCREENING`
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
-  -Method Put `
-  -ContentType "application/json" `
-  -Body '{
-    "status": "SCREENING",
-    "notes": "Recruiter call scheduled for Monday"
-  }'
-```
-
-#### Transition: `SCREENING` ➔ `INTERVIEW`
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
-  -Method Put `
-  -ContentType "application/json" `
-  -Body '{
-    "status": "INTERVIEW",
-    "notes": "Technical rounds: System Design & Coding"
-  }'
-```
-
-#### Transition: `INTERVIEW` ➔ `OFFER`
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
-  -Method Put `
-  -ContentType "application/json" `
-  -Body '{
-    "status": "OFFER",
-    "notes": "Received offer letter"
-  }'
-```
-
-#### Transition: `OFFER` ➔ `ACCEPTED` (Terminal)
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
-  -Method Put `
-  -ContentType "application/json" `
-  -Body '{
-    "status": "ACCEPTED",
-    "notes": "Signed offer! Start date in Nov."
-  }'
-```
-
----
-
-### 4. Trigger State Machine Validation (422 Error)
-
-If a user or script tries an invalid state leap (e.g. attempting to jump straight from `APPLIED` to `OFFER` without screening/interviews):
-
-```powershell
-# Attempt illegal jump: APPLIED -> OFFER
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
-  -Method Put `
-  -ContentType "application/json" `
-  -Body '{"status":"OFFER"}'
-```
-
-#### Error Response (`422 Unprocessable Entity`):
-```json
-{
-  "timestamp": "2026-10-02T13:07:02.4471647",
+  "timestamp": "2026-10-04T11:54:05.927998749",
   "status": 422,
   "error": "Unprocessable Entity",
   "message": "Cannot transition from APPLIED to OFFER. Allowed transitions: [SCREENING, REJECTED, WITHDRAWN]",
@@ -355,41 +243,42 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" `
 
 ---
 
-### 5. Delete an Application
+### Step 7: Delete an Application
+
+When you want to remove an application:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/applications/1" -Method Delete
+curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
+  -H "Authorization: Bearer $token"
+```
+**Response**: `204 No Content` (Success)
+
+If you try to retrieve it again, it returns `404 Not Found`.
+
+---
+
+## ⚡ 5. Quick Automated Test Script
+
+We have included a pre-written test script that automatically executes all 10 verification steps (Register, Login, Create, List, Multi-User Isolation, Update, Invalid Jump, Delete) in one go:
+
+```powershell
+.\test_phase2.ps1
 ```
 
-#### Response: `204 No Content`
-
 ---
 
-## ⚙ Configuration & Environment Variables
+## ❓ 6. Helpful Tips & Troubleshooting
 
-You can override default settings via standard environment variables or JVM system properties:
+### Q: Why do we use `| curl.exe ... -d "@-"` in PowerShell?
+**A**: PowerShell automatically strips double quotes from inline strings like `'{"name":"Alice"}'`. Using the pipe `... | curl.exe ... -d "@-"` feeds the exact JSON through standard input without any quote corruption.
 
-| Property | Default Value | Environment Variable | Description |
-|---|---|---|---|
-| `spring.datasource.url` | `jdbc:mysql://127.0.0.1:3307/huntlog...` | `DB_URL` | MySQL JDBC connection string |
-| `spring.datasource.username` | `huntlog` | `DB_USER` | Database username |
-| `spring.datasource.password` | `huntlog` | `DB_PASS` | Database password |
-| `server.port` | `8080` | `SERVER_PORT` | Port for the HTTP API server |
-
----
-
-## ❓ Troubleshooting & FAQs
-
-### Q: Why does Docker MySQL use port 3307 instead of 3306?
-**A**: Windows and developer machines often have an existing MySQL server running on default port `3306`. Mapping Docker MySQL to host port `3307` prevents port collision while keeping the internal container port as `3306`.
-
-### Q: How do I reset the database completely?
+### Q: How do I completely wipe and start fresh with an empty database?
 **A**: Run:
 ```powershell
 docker compose down -v
-docker compose up mysql -d
+docker compose up --build -d
 ```
-The `-v` flag removes the MySQL volume so Flyway migrations will re-run clean from `V1__create_job_applications_table.sql`.
+The `-v` flag deletes the MySQL volume so all Flyway migrations run fresh.
 
-### Q: How do I run behind a reverse proxy or with HTTPS?
-**A**: Set `server.forward-headers-strategy=native` in `application.yml` and route traffic through Nginx / Traefik / Caddy.
+### Q: What if I forget my password?
+**A**: Simply register a new test email (e.g. `user2@test.com`) during development, or wipe the volume with `docker compose down -v`.

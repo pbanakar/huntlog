@@ -7,8 +7,11 @@ import com.pbanakar.huntlog.enums.ApplicationStatus;
 import com.pbanakar.huntlog.exception.InvalidStatusTransitionException;
 import com.pbanakar.huntlog.exception.ResourceNotFoundException;
 import com.pbanakar.huntlog.model.JobApplication;
+import com.pbanakar.huntlog.model.User;
 import com.pbanakar.huntlog.repository.JobApplicationRepository;
+import com.pbanakar.huntlog.repository.UserRepository;
 import com.pbanakar.huntlog.statemachine.ApplicationStateMachine;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +21,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,27 +38,49 @@ class JobApplicationServiceTest {
     @Mock
     private JobApplicationRepository repository;
 
+    @Mock
+    private UserRepository userRepository;
+
     @Spy
     private ApplicationStateMachine stateMachine = new ApplicationStateMachine();
 
     @InjectMocks
     private JobApplicationService service;
 
+    private User testUser;
     private JobApplication existingApp;
 
     @BeforeEach
     void setUp() {
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setEmail("user@example.com");
+        testUser.setName("User One");
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken("user@example.com", null, Collections.emptyList());
+        auth.setDetails(1L);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
         existingApp = new JobApplication();
         existingApp.setId(1L);
+        existingApp.setUser(testUser);
         existingApp.setCompany("Google");
         existingApp.setRole("SWE");
         existingApp.setStatus(ApplicationStatus.APPLIED);
         existingApp.setAppliedDate(LocalDate.of(2026, 9, 21));
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
-    @DisplayName("Creating application sets status=APPLIED and appliedDate=today when not provided")
+    @DisplayName("Creating application sets user, status=APPLIED, and appliedDate=today when not provided")
     void create_setsDefaultStatusAndDate() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
         CreateApplicationRequest request = new CreateApplicationRequest();
         request.setCompany("Meta");
         request.setRole("SDE");
@@ -71,13 +99,14 @@ class JobApplicationServiceTest {
         JobApplication saved = captor.getValue();
         assertEquals(ApplicationStatus.APPLIED, saved.getStatus());
         assertEquals(LocalDate.now(), saved.getAppliedDate());
+        assertEquals(testUser, saved.getUser());
         assertEquals("Meta", response.getCompany());
     }
 
     @Test
     @DisplayName("Valid status transition (APPLIED → SCREENING) succeeds and saves")
     void update_validTransition_succeeds() {
-        when(repository.findById(1L)).thenReturn(Optional.of(existingApp));
+        when(repository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existingApp));
         when(repository.save(any(JobApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateApplicationRequest request = new UpdateApplicationRequest();
@@ -93,7 +122,7 @@ class JobApplicationServiceTest {
     @Test
     @DisplayName("Invalid transition (APPLIED → OFFER) throws InvalidStatusTransitionException")
     void update_invalidTransition_throws() {
-        when(repository.findById(1L)).thenReturn(Optional.of(existingApp));
+        when(repository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existingApp));
 
         UpdateApplicationRequest request = new UpdateApplicationRequest();
         request.setStatus(ApplicationStatus.OFFER);
@@ -111,7 +140,7 @@ class JobApplicationServiceTest {
     @DisplayName("Invalid transition from terminal state (ACCEPTED → anything) throws")
     void update_terminalState_throws() {
         existingApp.setStatus(ApplicationStatus.ACCEPTED);
-        when(repository.findById(1L)).thenReturn(Optional.of(existingApp));
+        when(repository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existingApp));
 
         UpdateApplicationRequest request = new UpdateApplicationRequest();
         request.setStatus(ApplicationStatus.REJECTED);
@@ -121,9 +150,9 @@ class JobApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("Fetching non-existent id throws ResourceNotFoundException")
+    @DisplayName("Fetching non-existent id or another user's id throws ResourceNotFoundException")
     void findById_notFound_throws() {
-        when(repository.findById(999L)).thenReturn(Optional.empty());
+        when(repository.findByIdAndUserId(999L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.findById(999L));
     }
@@ -132,7 +161,7 @@ class JobApplicationServiceTest {
     @DisplayName("allowedNextStatuses is empty for terminal states")
     void response_terminalState_emptyAllowed() {
         existingApp.setStatus(ApplicationStatus.ACCEPTED);
-        when(repository.findById(1L)).thenReturn(Optional.of(existingApp));
+        when(repository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existingApp));
 
         ApplicationResponse response = service.findById(1L);
         assertTrue(response.getAllowedNextStatuses().isEmpty());
@@ -151,7 +180,7 @@ class JobApplicationServiceTest {
     @Test
     @DisplayName("allowedNextStatuses correctly lists options for APPLIED")
     void response_applied_listsCorrectStatuses() {
-        when(repository.findById(1L)).thenReturn(Optional.of(existingApp));
+        when(repository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existingApp));
 
         ApplicationResponse response = service.findById(1L);
 

@@ -6,7 +6,10 @@ import com.pbanakar.huntlog.dto.response.ApplicationResponse;
 import com.pbanakar.huntlog.enums.ApplicationStatus;
 import com.pbanakar.huntlog.exception.ResourceNotFoundException;
 import com.pbanakar.huntlog.model.JobApplication;
+import com.pbanakar.huntlog.model.User;
 import com.pbanakar.huntlog.repository.JobApplicationRepository;
+import com.pbanakar.huntlog.repository.UserRepository;
+import com.pbanakar.huntlog.security.SecurityUtils;
 import com.pbanakar.huntlog.statemachine.ApplicationStateMachine;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,17 +23,25 @@ import java.util.ArrayList;
 public class JobApplicationService {
 
     private final JobApplicationRepository repository;
+    private final UserRepository userRepository;
     private final ApplicationStateMachine stateMachine;
 
     public JobApplicationService(JobApplicationRepository repository,
-                                  ApplicationStateMachine stateMachine) {
+                                 UserRepository userRepository,
+                                 ApplicationStateMachine stateMachine) {
         this.repository = repository;
+        this.userRepository = userRepository;
         this.stateMachine = stateMachine;
     }
 
     @Transactional
     public ApplicationResponse create(CreateApplicationRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
         JobApplication app = new JobApplication();
+        app.setUser(user);
         app.setCompany(request.getCompany());
         app.setRole(request.getRole());
         app.setStatus(ApplicationStatus.APPLIED);
@@ -45,20 +56,23 @@ public class JobApplicationService {
 
     @Transactional(readOnly = true)
     public Page<ApplicationResponse> findAll(ApplicationStatus status, String company, Pageable pageable) {
-        return repository.findAllWithFilters(status, company, pageable)
+        Long userId = SecurityUtils.getCurrentUserId();
+        return repository.findAllByUserWithFilters(userId, status, company, pageable)
                 .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public ApplicationResponse findById(Long id) {
-        JobApplication app = repository.findById(id)
+        Long userId = SecurityUtils.getCurrentUserId();
+        JobApplication app = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found with id: " + id));
         return toResponse(app);
     }
 
     @Transactional
     public ApplicationResponse update(Long id, UpdateApplicationRequest request) {
-        JobApplication app = repository.findById(id)
+        Long userId = SecurityUtils.getCurrentUserId();
+        JobApplication app = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found with id: " + id));
 
         if (request.getStatus() != null) {
@@ -82,7 +96,8 @@ public class JobApplicationService {
 
     @Transactional
     public void delete(Long id) {
-        JobApplication app = repository.findById(id)
+        Long userId = SecurityUtils.getCurrentUserId();
+        JobApplication app = repository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found with id: " + id));
         repository.delete(app);
     }

@@ -1,9 +1,12 @@
 package com.pbanakar.huntlog.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pbanakar.huntlog.dto.request.CreateApplicationRequest;
+import com.pbanakar.huntlog.dto.request.RegisterRequest;
 import com.pbanakar.huntlog.dto.request.UpdateApplicationRequest;
 import com.pbanakar.huntlog.enums.ApplicationStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -48,12 +53,36 @@ class JobApplicationIT {
 
     private static final String BASE_URL = "/api/v1/applications";
 
-    private String createApplication(String company, String role) throws Exception {
+    private String userToken;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        userToken = registerAndGetToken("user_" + UUID.randomUUID() + "@huntlog.test", "Test User");
+    }
+
+    private String registerAndGetToken(String email, String name) throws Exception {
+        RegisterRequest registerReq = new RegisterRequest();
+        registerReq.setEmail(email);
+        registerReq.setName(name);
+        registerReq.setPassword("password123");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(registerReq)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
+        return root.get("token").asText();
+    }
+
+    private String createApplication(String token, String company, String role) throws Exception {
         CreateApplicationRequest request = new CreateApplicationRequest();
         request.setCompany(company);
         request.setRole(role);
 
         MvcResult result = mockMvc.perform(post(BASE_URL)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -73,6 +102,7 @@ class JobApplicationIT {
         request.setLocation("Mountain View, CA");
 
         mockMvc.perform(post(BASE_URL)
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -88,26 +118,28 @@ class JobApplicationIT {
     }
 
     @Test
-    @DisplayName("GET /applications returns paginated results")
+    @DisplayName("GET /applications returns paginated results for authenticated user")
     void get_returnsPaginatedResults() throws Exception {
-        createApplication("PaginationTest1", "SWE");
-        createApplication("PaginationTest2", "SDE");
+        createApplication(userToken, "PaginationTest1", "SWE");
+        createApplication(userToken, "PaginationTest2", "SDE");
 
         mockMvc.perform(get(BASE_URL)
+                        .header("Authorization", "Bearer " + userToken)
                         .param("page", "0")
                         .param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.totalElements").value(greaterThanOrEqualTo(2)))
                 .andExpect(jsonPath("$.pageable").exists());
     }
 
     @Test
     @DisplayName("GET /applications?status=APPLIED filters correctly")
     void get_filtersbyStatus() throws Exception {
-        createApplication("FilterCompany", "Analyst");
+        createApplication(userToken, "FilterCompany", "Analyst");
 
         mockMvc.perform(get(BASE_URL)
+                        .header("Authorization", "Bearer " + userToken)
                         .param("status", "APPLIED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
@@ -117,10 +149,11 @@ class JobApplicationIT {
     @Test
     @DisplayName("GET /applications/{id} returns correct application")
     void getById_returnsApplication() throws Exception {
-        String body = createApplication("GetByIdCo", "PM");
+        String body = createApplication(userToken, "GetByIdCo", "PM");
         Long id = objectMapper.readTree(body).get("id").asLong();
 
-        mockMvc.perform(get(BASE_URL + "/" + id))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.company").value("GetByIdCo"));
@@ -129,13 +162,14 @@ class JobApplicationIT {
     @Test
     @DisplayName("PUT with valid transition → 200, status updated")
     void put_validTransition_updates() throws Exception {
-        String body = createApplication("TransitionCo", "SWE");
+        String body = createApplication(userToken, "TransitionCo", "SWE");
         Long id = objectMapper.readTree(body).get("id").asLong();
 
         UpdateApplicationRequest update = new UpdateApplicationRequest();
         update.setStatus(ApplicationStatus.SCREENING);
 
         mockMvc.perform(put(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(update)))
                 .andExpect(status().isOk())
@@ -146,13 +180,14 @@ class JobApplicationIT {
     @Test
     @DisplayName("PUT with INVALID transition → 422, error message contains from and to status")
     void put_invalidTransition_returns422() throws Exception {
-        String body = createApplication("InvalidTransCo", "SDE");
+        String body = createApplication(userToken, "InvalidTransCo", "SDE");
         Long id = objectMapper.readTree(body).get("id").asLong();
 
         UpdateApplicationRequest update = new UpdateApplicationRequest();
         update.setStatus(ApplicationStatus.OFFER);
 
         mockMvc.perform(put(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(update)))
                 .andExpect(status().isUnprocessableEntity())
@@ -163,22 +198,61 @@ class JobApplicationIT {
     @Test
     @DisplayName("DELETE → 204, subsequent GET → 404")
     void delete_thenGet_returns404() throws Exception {
-        String body = createApplication("DeleteCo", "QA");
+        String body = createApplication(userToken, "DeleteCo", "QA");
         Long id = objectMapper.readTree(body).get("id").asLong();
 
-        mockMvc.perform(delete(BASE_URL + "/" + id))
+        mockMvc.perform(delete(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get(BASE_URL + "/" + id))
+        mockMvc.perform(get(BASE_URL + "/" + id)
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     @DisplayName("GET /applications/{nonExistentId} → 404")
     void getById_nonExistent_returns404() throws Exception {
-        mockMvc.perform(get(BASE_URL + "/99999"))
+        mockMvc.perform(get(BASE_URL + "/99999")
+                        .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.message", containsString("99999")));
+    }
+
+    @Test
+    @DisplayName("Per-user data isolation: User B cannot access, update, or delete User A's application")
+    void userIsolation_userBCannotAccessUserAData() throws Exception {
+        // User A creates an application
+        String userAToken = registerAndGetToken("userA_" + UUID.randomUUID() + "@test.com", "User A");
+        String userBToken = registerAndGetToken("userB_" + UUID.randomUUID() + "@test.com", "User B");
+
+        String bodyA = createApplication(userAToken, "UserA Company", "Principal Architect");
+        Long appAId = objectMapper.readTree(bodyA).get("id").asLong();
+
+        // User B attempts to GET User A's application -> 404
+        mockMvc.perform(get(BASE_URL + "/" + appAId)
+                        .header("Authorization", "Bearer " + userBToken))
+                .andExpect(status().isNotFound());
+
+        // User B attempts to UPDATE User A's application -> 404
+        UpdateApplicationRequest update = new UpdateApplicationRequest();
+        update.setStatus(ApplicationStatus.SCREENING);
+        mockMvc.perform(put(BASE_URL + "/" + appAId)
+                        .header("Authorization", "Bearer " + userBToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isNotFound());
+
+        // User B attempts to DELETE User A's application -> 404
+        mockMvc.perform(delete(BASE_URL + "/" + appAId)
+                        .header("Authorization", "Bearer " + userBToken))
+                .andExpect(status().isNotFound());
+
+        // User B's application list does NOT contain User A's application
+        mockMvc.perform(get(BASE_URL)
+                        .header("Authorization", "Bearer " + userBToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 }

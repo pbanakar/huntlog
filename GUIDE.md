@@ -243,7 +243,49 @@ Try to make an illegal leap (for example, attempting to jump directly from `APPL
 
 ---
 
-### Step 7: Delete an Application
+### Step 7: View Your Job Hunt Analytics
+
+Get real-time statistics, response rates, and company application breakdown:
+
+```powershell
+curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
+  -H "Authorization: Bearer $token"
+```
+
+**Response (`200 OK`)**:
+```json
+{
+  "totalApplications": 3,
+  "byStatus": {
+    "APPLIED": 1,
+    "SCREENING": 1,
+    "INTERVIEW": 0,
+    "OFFER": 0,
+    "ACCEPTED": 1,
+    "REJECTED": 0,
+    "WITHDRAWN": 0
+  },
+  "appliedThisWeek": 3,
+  "appliedThisMonth": 3,
+  "responseRate": 66.7,
+  "averageDaysToFirstUpdate": 4.5,
+  "oldestPendingDays": 12,
+  "topCompaniesByApplications": [
+    {
+      "company": "Google",
+      "count": 2
+    },
+    {
+      "company": "Amazon",
+      "count": 1
+    }
+  ]
+}
+```
+
+---
+
+### Step 8: Delete an Application
 
 When you want to remove an application:
 

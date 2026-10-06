@@ -1,6 +1,6 @@
 # 🏛️ HuntLog — System Architecture & Technical Design
 
-This document details the architectural decisions, design patterns, state machine mechanics, security models, and database schema for HuntLog.
+This document details the architectural decisions, design patterns, state machine mechanics, security models, database schema, and analytics pipeline for HuntLog.
 
 ---
 
@@ -20,11 +20,13 @@ flowchart TD
     subgraph ControllerLayer ["🎮 Controller Layer"]
         AuthCtrl["AuthController\n(/api/v1/auth/**)"]
         AppCtrl["JobApplicationController\n(/api/v1/applications/**)"]
+        AnalyticsCtrl["AnalyticsController\n(/api/v1/analytics)"]
     end
 
     subgraph ServiceLayer ["⚙️ Business Logic & Domain"]
         AuthService["AuthService\n(BCrypt Hashing, Token Generation)"]
         AppService["JobApplicationService\n(User Scoping & Pipeline Orchestration)"]
+        AnalyticsService["AnalyticsService\n(Metrics, Response Rates, Aggregations)"]
         StateMachine["ApplicationStateMachine\n(O(1) Enum State Transition Validator)"]
     end
 
@@ -38,6 +40,7 @@ flowchart TD
     Client -->|Authenticated Request with Bearer Token| JwtFilter
     JwtFilter -->|Populates| SecurityCtx
     JwtFilter -->|Routes Request| AppCtrl
+    JwtFilter -->|Routes Request| AnalyticsCtrl
     
     AuthCtrl --> AuthService
     AuthService --> UserRepo
@@ -47,6 +50,10 @@ flowchart TD
     AppService --> SecurityCtx
     AppService --> StateMachine
     AppService --> AppRepo
+    
+    AnalyticsCtrl --> AnalyticsService
+    AnalyticsService --> SecurityCtx
+    AnalyticsService --> AppRepo
     
     UserRepo --> MySQL
     AppRepo --> MySQL
@@ -102,7 +109,18 @@ Every response payload embeds `allowedNextStatuses: [...]`, enabling client fron
 
 ---
 
-## 🔒 3. Security & Multi-Tenant Data Isolation
+## 📊 3. Analytics & Metrics Pipeline
+
+The [`AnalyticsService`](file:///c:/projects/Huntlog/src/main/java/com/pbanakar/huntlog/service/AnalyticsService.java) executes user-scoped SQL aggregate queries to compute live insights:
+
+- **Database-level Aggregation**: Uses Spring Data JPA `@Query` projections (`CompanyCount`) to calculate top company distribution in MySQL rather than loading all rows into Java memory.
+- **Response Rate Formula**: 
+  $$\text{Response Rate} = \frac{\text{Total} - \text{APPLIED} - \text{WITHDRAWN}}{\text{Total}} \times 100$$
+- **Velocity Metrics**: Computes average days from submission to first status transition across non-APPLIED applications.
+
+---
+
+## 🔒 4. Security & Multi-Tenant Data Isolation
 
 ### Stateless Authentication
 - **Algorithm**: HMAC-SHA512 (`HS512`) with 256+ bit secret keys.
@@ -135,7 +153,7 @@ sequenceDiagram
 
 ---
 
-## 🗄️ 4. Database Schema & Flyway Migrations
+## 🗄️ 5. Database Schema & Flyway Migrations
 
 Database schema versioning is managed via Flyway migrations under `src/main/resources/db/migration`:
 
@@ -173,7 +191,7 @@ erDiagram
 
 ---
 
-## ⚠️ 5. Global Exception & Error Handling
+## ⚠️ 6. Global Exception & Error Handling
 
 All controller errors are caught by [`GlobalExceptionHandler`](file:///c:/projects/Huntlog/src/main/java/com/pbanakar/huntlog/exception/GlobalExceptionHandler.java) and returned in a standard RFC 7807 format:
 

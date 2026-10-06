@@ -19,12 +19,51 @@ mvn clean package -DskipTests
 
 # 2. Start MySQL and Spring Boot in Docker
 docker compose up --build -d
-
-# 3. Run the automated test script
-.\test_phase2.ps1
 ```
 
 The API is accessible at: `http://localhost:8080`
+
+---
+
+## 📊 Analytics Example
+
+Retrieve real-time metrics and insights about your job hunt:
+
+```powershell
+curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
+  -H "Authorization: Bearer $token"
+```
+
+**Response (`200 OK`)**:
+```json
+{
+  "totalApplications": 42,
+  "byStatus": {
+    "APPLIED": 15,
+    "SCREENING": 10,
+    "INTERVIEW": 8,
+    "OFFER": 3,
+    "ACCEPTED": 1,
+    "REJECTED": 4,
+    "WITHDRAWN": 1
+  },
+  "appliedThisWeek": 5,
+  "appliedThisMonth": 18,
+  "responseRate": 63.1,
+  "averageDaysToFirstUpdate": 8.4,
+  "oldestPendingDays": 21,
+  "topCompaniesByApplications": [
+    {
+      "company": "Google",
+      "count": 3
+    },
+    {
+      "company": "Microsoft",
+      "count": 2
+    }
+  ]
+}
+```
 
 ---
 
@@ -32,6 +71,7 @@ The API is accessible at: `http://localhost:8080`
 
 - [x] **Phase 1** — Core CRUD + State Machine
 - [x] **Phase 2** — JWT Authentication & Per-User Data Isolation
-- [ ] **Phase 3** — Email Notifications & Scheduling
+- [x] **Phase 3a** — User Analytics & Metrics (`GET /api/v1/analytics`)
+- [ ] **Phase 3b** — Email Notifications & Reminders
 - [ ] **Phase 4** — API Documentation (Swagger/OpenAPI)
 - [ ] **Phase 5** — Frontend Dashboard

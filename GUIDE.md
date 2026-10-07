@@ -1,93 +1,92 @@
-# 📖 HuntLog — Beginner & User Guide
+# HuntLog — User and Beginner Guide
 
-Welcome to **HuntLog**! This guide is designed to get you up and running in minutes, explain how to use every feature end-to-end, and clarify important details about how your data is stored and managed.
+This guide provides end-to-end instructions for running HuntLog, using the web dashboard, interacting with the REST API, and managing data.
 
-> 💡 **Looking for technical architecture, database schemas, or state machine internals?** Check out [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
-
----
-
-## 📌 1. Important Things You Should Know
-
-Before running the app, here are a few key concepts:
-
-### Where is the Data Stored?
-- HuntLog uses a **MySQL 8.0** database.
-- When running via Docker, data is saved inside a persistent Docker volume named **`mysql_data`**.
-- This means your data **survives container restarts** — closing or stopping Docker will NOT delete your accounts or job applications.
-
-### Why Port 3307 instead of 3306?
-- Many computers (especially Windows) already have local MySQL or dev tools using port `3306`.
-- We map Docker MySQL to port **`3307`** on your host machine to prevent port collisions, while inside Docker the container communicates normally on `3306`.
-
-### How Authentication Works:
-- When you register or login, the API returns a signed **JWT token** (a long text string).
-- For all job application actions, you must send this token in the request header:
-  ```http
-  Authorization: Bearer <your-token-here>
-  ```
-- Your applications are completely private. Another user cannot see, edit, or delete your applications.
+For technical architecture and database design, see [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
 
 ---
 
-## 🧰 2. Prerequisites
+## 1. Key Concepts
 
-Make sure you have these tools installed on your computer:
+### Data Persistence
+- HuntLog stores application data in a MySQL 8.0 database.
+- When running with Docker, data persists inside a Docker volume named `mysql_data`. Stopping or restarting containers does not erase your data.
 
-1. **Java JDK 21+** (`java -version`)
-2. **Maven 3.9+** (`mvn -version`)
-3. **Docker Desktop** running in the background (`docker --version`)
+### Database Port Mapping
+- Host machines often run local services on port 3306.
+- Docker maps the MySQL database to host port `3307` to avoid port collisions, while inside the container network it communicates on default port 3306.
+
+### Authentication and Data Isolation
+- Authentication uses JSON Web Tokens (JWT).
+- All job application data is strictly scoped to the authenticated user ID. Users can only access and modify their own applications.
 
 ---
 
-## 🚀 3. How to Run HuntLog
+## 2. Prerequisites
 
-### Method A: Full Stack with Docker Compose (Fastest & Recommended)
+Verify that the following tools are installed:
 
-This starts both the MySQL database and the Spring Boot application inside Docker.
+1. **Java JDK 21+**: Verify with `java -version`
+2. **Maven 3.9+**: Verify with `mvn -version`
+3. **Docker Desktop**: Verify with `docker --version`
+
+---
+
+## 3. How to Run HuntLog
+
+### Method A: Docker Compose (Recommended)
+
+Starts both the MySQL database and the Spring Boot application container.
 
 ```powershell
-# Step 1: Build the latest JAR file
+# 1. Package the application JAR
 mvn clean package -DskipTests
 
-# Step 2: Start both MySQL and API containers
+# 2. Build and start containers in the background
 docker compose up --build -d
 
-# Step 3: Check that containers are running
+# 3. Verify running containers
 docker compose ps
 ```
 
-The API will be live at: **`http://localhost:8080`**
+The application is accessible in your browser at:
+**http://localhost:8080**
 
-To stop the containers when you're done:
+To stop containers:
 ```powershell
 docker compose down
 ```
 
----
-
 ### Method B: Local Development Mode
 
-If you are modifying code and want instant reloading:
+Runs the Spring Boot application locally while connecting to MySQL in Docker.
 
 ```powershell
-# 1. Start only the MySQL database in Docker
+# 1. Start only the MySQL database
 docker compose up mysql -d
 
-# 2. Run the Spring Boot app directly on your machine
+# 2. Run the Spring Boot application
 mvn spring-boot:run
 ```
 
 ---
 
-## 💡 4. End-to-End Walkthrough (Step-by-Step)
+## 4. Using the Web Dashboard
 
-Open PowerShell and follow these steps to see the entire app in action:
+1. **Register an Account**: Open `http://localhost:8080` and switch to the "Register" tab. Enter your name, email, and password.
+2. **View Live Analytics**: The dashboard displays real-time statistics including total applications, applications submitted this week, response rate percentage, and oldest pending application age.
+3. **Create Applications**: Click "+ New Application" to add company, role, applied date, location, job URL, and notes.
+4. **Update Status**: Click the "Status" button next to any row. The dropdown only permits transitions allowed by the state machine (e.g. APPLIED can only transition to SCREENING, REJECTED, or WITHDRAWN).
+5. **Real-time Search and Filter**: Use the company search box to filter instantly on the client side, or filter by specific application status using the dropdown.
+6. **Mobile View**: The layout automatically adapts to mobile screens, converting the sidebar into a collapsible top navigation.
 
 ---
 
-### Step 1: Register a New User Account
+## 5. End-to-End API Walkthrough
 
-Create your account with your name, email, and a password (minimum 8 characters):
+If you prefer to interact directly with the REST API using PowerShell and curl:
+
+### Step 1: Register User
 
 ```powershell
 '{"name":"Alice Dev","email":"alice@test.com","password":"password123"}' | `
@@ -95,20 +94,16 @@ Create your account with your name, email, and a password (minimum 8 characters)
   -H "Content-Type: application/json" -d "@-"
 ```
 
-**What you receive back (`201 Created`)**:
+Response (`201 Created`):
 ```json
 {
-  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhbGljZUB0ZXN0LmNvbSIsInVzZXJJZCI6MSwibmFtZSI6IkFsaWNlIERldiIsImlhdCI6MTc5MTExNDc0NCwiZXhwIjoxNzkxMjAxMTQ0fQ...",
+  "token": "eyJhbGciOiJIUzUxMiJ9...",
   "email": "alice@test.com",
   "name": "Alice Dev"
 }
 ```
 
----
-
-### Step 2: Login and Save Your Token in a Variable
-
-Login to get your JWT access token and store it in PowerShell variable `$token`:
+### Step 2: Login and Save Token
 
 ```powershell
 $auth = '{"email":"alice@test.com","password":"password123"}' | `
@@ -116,34 +111,29 @@ $auth = '{"email":"alice@test.com","password":"password123"}' | `
   -H "Content-Type: application/json" -d "@-" | ConvertFrom-Json
 
 $token = $auth.token
-Write-Host "Logged in successfully! Token starts with: $($token.Substring(0, 20))..."
 ```
-
----
 
 ### Step 3: Create a Job Application
 
-Add an application you just submitted:
-
 ```powershell
-'{"company":"Google","role":"Staff Software Engineer","jobUrl":"https://careers.google.com/123","location":"Mountain View, CA","notes":"Referred by Alex"}' | `
+'{"company":"Google","role":"Staff Software Engineer","jobUrl":"https://careers.google.com/123","location":"Mountain View, CA","notes":"Referred by team"}' | `
   curl.exe -s -X POST http://localhost:8080/api/v1/applications `
   -H "Content-Type: application/json" `
   -H "Authorization: Bearer $token" `
   -d "@-"
 ```
 
-**Response (`201 Created`)**:
+Response (`201 Created`):
 ```json
 {
   "id": 1,
   "company": "Google",
   "role": "Staff Software Engineer",
   "status": "APPLIED",
-  "appliedDate": "2026-10-04",
-  "lastUpdated": "2026-10-04T11:53:43.489361",
+  "appliedDate": "2026-10-06",
+  "lastUpdated": "2026-10-06T12:00:00.000",
   "jobUrl": "https://careers.google.com/123",
-  "notes": "Referred by Alex",
+  "notes": "Referred by team",
   "location": "Mountain View, CA",
   "allowedNextStatuses": [
     "SCREENING",
@@ -152,75 +142,33 @@ Add an application you just submitted:
   ]
 }
 ```
-> Notice `allowedNextStatuses` tells you exactly which stages this application can move to next!
 
----
-
-### Step 4: View and Filter Your Applications
-
-View all applications you have created:
+### Step 4: List and Filter Applications
 
 ```powershell
-# 1. Get all your applications (Page 0, 10 items per page)
+# List all applications (paginated)
 curl.exe -s -X GET "http://localhost:8080/api/v1/applications?page=0&size=10" `
   -H "Authorization: Bearer $token"
 
-# 2. Filter by company name (e.g. Google)
-curl.exe -s -X GET "http://localhost:8080/api/v1/applications?company=Google" `
-  -H "Authorization: Bearer $token"
-
-# 3. Filter by status (e.g. APPLIED)
+# Filter by status
 curl.exe -s -X GET "http://localhost:8080/api/v1/applications?status=APPLIED" `
   -H "Authorization: Bearer $token"
 ```
 
----
+### Step 5: Advance Status Through Hiring Pipeline
 
-### Step 5: Advance Application Through the Hiring Pipeline
-
-As you make progress in your hiring process, update the application status:
-
-#### Stage 1: Recruiter Phone Screening
 ```powershell
-'{"status":"SCREENING","notes":"Passed initial screening, scheduling tech round"}' | `
+# Transition from APPLIED to SCREENING
+'{"status":"SCREENING","notes":"Recruiter phone screen scheduled"}' | `
   curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
   -H "Content-Type: application/json" `
   -H "Authorization: Bearer $token" `
   -d "@-"
 ```
 
-#### Stage 2: Technical Interview
-```powershell
-'{"status":"INTERVIEW","notes":"Completed System Design & Coding rounds"}' | `
-  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
-  -H "Content-Type: application/json" `
-  -H "Authorization: Bearer $token" `
-  -d "@-"
-```
+### Step 6: Verify State Machine Validation
 
-#### Stage 3: Job Offer!
-```powershell
-'{"status":"OFFER","notes":"Received written offer letter with equity package"}' | `
-  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
-  -H "Content-Type: application/json" `
-  -H "Authorization: Bearer $token" `
-  -d "@-"
-```
-
-#### Stage 4: Accept Offer (Terminal State)
-```powershell
-'{"status":"ACCEPTED","notes":"Offer signed! Start date in November."}' | `
-  curl.exe -s -X PUT http://localhost:8080/api/v1/applications/1 `
-  -H "Content-Type: application/json" `
-  -H "Authorization: Bearer $token" `
-  -d "@-"
-```
-
----
-
-### Step 6: Test State Machine Validation (422 Guard)
-
-Try to make an illegal leap (for example, attempting to jump directly from `APPLIED` to `OFFER`):
+Attempting an illegal jump (e.g. `APPLIED` directly to `OFFER`) results in a `422 Unprocessable Entity`:
 
 ```powershell
 '{"status":"OFFER"}' | `
@@ -230,10 +178,9 @@ Try to make an illegal leap (for example, attempting to jump directly from `APPL
   -d "@-"
 ```
 
-**What the API returns (`422 Unprocessable Entity`)**:
+Response (`422 Unprocessable Entity`):
 ```json
 {
-  "timestamp": "2026-10-04T11:54:05.927998749",
   "status": 422,
   "error": "Unprocessable Entity",
   "message": "Cannot transition from APPLIED to OFFER. Allowed transitions: [SCREENING, REJECTED, WITHDRAWN]",
@@ -241,86 +188,60 @@ Try to make an illegal leap (for example, attempting to jump directly from `APPL
 }
 ```
 
----
-
-### Step 7: View Your Job Hunt Analytics
-
-Get real-time statistics, response rates, and company application breakdown:
+### Step 7: Retrieve Analytics
 
 ```powershell
 curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
   -H "Authorization: Bearer $token"
 ```
 
-**Response (`200 OK`)**:
+Response (`200 OK`):
 ```json
 {
-  "totalApplications": 3,
+  "totalApplications": 1,
   "byStatus": {
-    "APPLIED": 1,
+    "APPLIED": 0,
     "SCREENING": 1,
     "INTERVIEW": 0,
     "OFFER": 0,
-    "ACCEPTED": 1,
+    "ACCEPTED": 0,
     "REJECTED": 0,
     "WITHDRAWN": 0
   },
-  "appliedThisWeek": 3,
-  "appliedThisMonth": 3,
-  "responseRate": 66.7,
-  "averageDaysToFirstUpdate": 4.5,
-  "oldestPendingDays": 12,
+  "appliedThisWeek": 1,
+  "appliedThisMonth": 1,
+  "responseRate": 100.0,
+  "averageDaysToFirstUpdate": 0.0,
+  "oldestPendingDays": 0,
   "topCompaniesByApplications": [
     {
       "company": "Google",
-      "count": 2
-    },
-    {
-      "company": "Amazon",
       "count": 1
     }
   ]
 }
 ```
 
----
-
-### Step 8: Delete an Application
-
-When you want to remove an application:
+### Step 8: Delete Application
 
 ```powershell
 curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
   -H "Authorization: Bearer $token"
 ```
-**Response**: `204 No Content` (Success)
 
-If you try to retrieve it again, it returns `404 Not Found`.
-
----
-
-## ⚡ 5. Quick Automated Test Script
-
-We have included a pre-written test script that automatically executes all 10 verification steps (Register, Login, Create, List, Multi-User Isolation, Update, Invalid Jump, Delete) in one go:
-
-```powershell
-.\test_phase2.ps1
-```
+Response: `204 No Content`
 
 ---
 
-## ❓ 6. Helpful Tips & Troubleshooting
+## 6. Troubleshooting
 
-### Q: Why do we use `| curl.exe ... -d "@-"` in PowerShell?
-**A**: PowerShell automatically strips double quotes from inline strings like `'{"name":"Alice"}'`. Using the pipe `... | curl.exe ... -d "@-"` feeds the exact JSON through standard input without any quote corruption.
+### Why use `| curl.exe ... -d "@-"` in PowerShell?
+PowerShell command parsing can strip double quotes from inline JSON string arguments. Piping JSON strings directly to `curl.exe -d "@-"` preserves formatting reliably.
 
-### Q: How do I completely wipe and start fresh with an empty database?
-**A**: Run:
+### How to Reset Database and Start Clean
+Run:
 ```powershell
 docker compose down -v
 docker compose up --build -d
 ```
-The `-v` flag deletes the MySQL volume so all Flyway migrations run fresh.
-
-### Q: What if I forget my password?
-**A**: Simply register a new test email (e.g. `user2@test.com`) during development, or wipe the volume with `docker compose down -v`.
+The `-v` flag removes the persistent MySQL volume, allowing all Flyway migrations to run from scratch.

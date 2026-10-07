@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HuntLog — Job Application Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Network / Global Error Banner -->
+    <div id="network-banner" class="network-banner hidden">
+        <span>Could not reach server. Is the API running?</span>
+        <button type="button" id="btn-close-banner">&times;</button>
+    </div>
+
+    <!-- 1. AUTHENTICATION VIEW -->
+    <main id="auth-view" class="auth-wrapper hidden">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="brand-badge">HuntLog</div>
+                <h1>Job Application Tracker</h1>
+                <p>Manage your job search with pipeline validation and analytics.</p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-group">
+                <button type="button" class="tab-btn active" id="tab-login" onclick="switchAuthTab('login')">Login</button>
+                <button type="button" class="tab-btn" id="tab-register" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" required placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter password" autocomplete="current-password">
+                </div>
+                <div id="login-error" class="form-error hidden"></div>
+                <button type="submit" id="login-submit-btn" class="btn btn-primary btn-block">Sign In</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form hidden" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="reg-name">Full Name</label>
+                    <input type="text" id="reg-name" required placeholder="Alice Dev" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" required placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password (8+ characters)</label>
+                    <input type="password" id="reg-password" minlength="8" required placeholder="At least 8 characters" autocomplete="new-password">
+                </div>
+                <div id="register-error" class="form-error hidden"></div>
+                <button type="submit" id="register-submit-btn" class="btn btn-primary btn-block">Create Account</button>
+            </form>
+        </div>
+    </main>
+
+    <!-- 2. DASHBOARD VIEW -->
+    <div id="dashboard-view" class="app-container hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-title">HuntLog</div>
+                <div class="brand-subtitle">Application Tracker</div>
+            </div>
+
+            <div class="user-profile">
+                <div class="user-avatar" id="sidebar-user-initial">U</div>
+                <div class="user-details">
+                    <span class="user-name" id="sidebar-user-name">User</span>
+                    <span class="user-email" id="sidebar-user-email">user@example.com</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" id="nav-dashboard">
+                    <span class="nav-label">Dashboard</span>
+                </a>
+                <button type="button" class="nav-item nav-action-btn" id="btn-sidebar-add" onclick="openAddModal()">
+                    <span class="nav-label">+ Add Application</span>
+                </button>
+            </nav>
+
+            <!-- Sidebar Mini Stats Summary -->
+            <div class="sidebar-stats">
+                <div class="sidebar-stats-title">Summary</div>
+                <div class="sidebar-stat-row">
+                    <span>Total Apps:</span>
+                    <strong id="side-total-apps">0</strong>
+                </div>
+                <div class="sidebar-stat-row">
+                    <span>This Week:</span>
+                    <strong id="side-this-week">0</strong>
+                </div>
+                <div class="sidebar-stat-row">
+                    <span>Response Rate:</span>
+                    <strong id="side-response-rate">0.0%</strong>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button type="button" class="btn btn-logout" id="btn-logout" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header Bar -->
+            <header class="top-bar">
+                <div>
+                    <h1 class="page-title">Applications Dashboard</h1>
+                    <p class="page-subtitle">Track, update, and manage your active hiring pipeline.</p>
+                </div>
+                <div class="top-bar-actions">
+                    <button type="button" class="btn btn-secondary" onclick="loadDashboardData()">Refresh</button>
+                    <button type="button" class="btn btn-primary" onclick="openAddModal()">+ New Application</button>
+                </div>
+            </header>
+
+            <!-- Section 1: Stats Cards -->
+            <section class="stats-grid" id="stats-section">
+                <div class="stat-card">
+                    <span class="stat-title">Total Applications</span>
+                    <div class="stat-value" id="card-total-apps">0</div>
+                    <span class="stat-hint">All recorded submissions</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Applied This Week</span>
+                    <div class="stat-value" id="card-this-week">0</div>
+                    <span class="stat-hint">Since Monday</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Response Rate</span>
+                    <div class="stat-value" id="card-response-rate">0.0%</div>
+                    <span class="stat-hint">Moved past initial application</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-title">Oldest Pending</span>
+                    <div class="stat-value" id="card-oldest-pending">—</div>
+                    <span class="stat-hint" id="card-oldest-hint">In screening or interview</span>
+                </div>
+            </section>
+
+            <!-- Section 2: Applications Table & Filter Bar -->
+            <section class="table-card">
+                <div class="filter-bar">
+                    <div class="filter-search-wrap">
+                        <input type="text" id="search-input" placeholder="Search by company name..." oninput="handleClientSearch()">
+                    </div>
+                    <div class="filter-select-wrap">
+                        <label for="status-filter">Status:</label>
+                        <select id="status-filter" onchange="handleStatusFilterChange()">
+                            <option value="ALL">All Statuses</option>
+                            <option value="APPLIED">APPLIED</option>
+                            <option value="SCREENING">SCREENING</option>
+                            <option value="INTERVIEW">INTERVIEW</option>
+                            <option value="OFFER">OFFER</option>
+                            <option value="ACCEPTED">ACCEPTED</option>
+                            <option value="REJECTED">REJECTED</option>
+                            <option value="WITHDRAWN">WITHDRAWN</option>
+                        </select>
+                    </div>
+                    <div class="table-counter">
+                        <span id="filtered-count-badge">0 applications</span>
+                    </div>
+                </div>
+
+                <!-- Table & Loading State -->
+                <div id="table-loading" class="loading-state hidden">Loading applications...</div>
+                
+                <div class="table-wrapper">
+                    <table class="data-table" id="applications-table">
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Applied Date</th>
+                                <th>Location</th>
+                                <th class="actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="applications-tbody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="empty-state" class="empty-state hidden">
+                    <h3>No applications found</h3>
+                    <p>Try clearing filters or click "+ New Application" to record your first job application.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 3. ADD APPLICATION MODAL -->
+    <div id="add-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event, 'add-modal')">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h2>Add Job Application</h2>
+                <button type="button" class="btn-close" onclick="closeModal('add-modal')">&times;</button>
+            </div>
+            <form id="add-app-form" onsubmit="handleAddApplication(event)">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-company">Company <span class="required">*</span></label>
+                            <input type="text" id="add-company" required placeholder="e.g. Google" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="add-role">Role / Title <span class="required">*</span></label>
+                            <input type="text" id="add-role" required placeholder="e.g. Staff Software Engineer" maxlength="100">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="add-applied-date">Applied Date</label>
+                            <input type="date" id="add-applied-date">
+                        </div>
+                        <div class="form-group">
+                            <label for="add-location">Location</label>
+                            <input type="text" id="add-location" placeholder="e.g. Mountain View, CA or Remote" maxlength="100">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="add-job-url">Job Posting URL</label>
+                        <input type="url" id="add-job-url" placeholder="https://careers.google.com/jobs/..." maxlength="500">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="add-notes">Notes</label>
+                        <textarea id="add-notes" rows="3" placeholder="Referral details, compensation range, interview prep notes..." maxlength="2000"></textarea>
+                    </div>
+
+                    <div id="add-app-error" class="form-error hidden"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-modal')">Cancel</button>
+                    <button type="submit" id="add-submit-btn" class="btn btn-primary">Create Application</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. UPDATE STATUS MODAL -->
+    <div id="update-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event, 'update-modal')">
+        <div class="modal-dialog modal-dialog-sm">
+            <div class="modal-header">
+                <h2>Update Application Status</h2>
+                <button type="button" class="btn-close" onclick="closeModal('update-modal')">&times;</button>
+            </div>
+            <form id="update-status-form" onsubmit="handleUpdateStatusSubmit(event)">
+                <div class="modal-body">
+                    <p class="update-target-info" id="update-target-info">
+                        Updating status for <strong id="update-target-company">Company</strong> — <span id="update-target-role">Role</span>
+                    </p>
+                    
+                    <div class="form-group">
+                        <label>Current Status:</label>
+                        <div id="update-current-badge-wrap"></div>
+                    </div>
+
+                    <div class="form-group" id="update-select-group">
+                        <label for="update-status-select">Transition To Allowed Next Status:</label>
+                        <select id="update-status-select" required>
+                            <!-- Dynamically populated only with allowedNextStatuses -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="update-notes">Updated Notes (Optional):</label>
+                        <textarea id="update-notes" rows="2" placeholder="Interview details, recruiter feedback..." maxlength="2000"></textarea>
+                    </div>
+
+                    <div id="update-no-transitions" class="info-callout hidden">
+                        This application is in a terminal state (ACCEPTED, REJECTED, or WITHDRAWN). No further status changes are allowed by the state machine.
+                    </div>
+
+                    <div id="update-app-error" class="form-error hidden"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('update-modal')">Cancel</button>
+                    <button type="submit" id="update-submit-btn" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

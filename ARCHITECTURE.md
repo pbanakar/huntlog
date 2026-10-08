@@ -1,12 +1,12 @@
 # HuntLog — System Architecture and Technical Design
 
-This document details the architectural decisions, design patterns, state machine mechanics, security model, database schema, and frontend architecture for HuntLog.
+This document details the architectural decisions, design patterns, state machine mechanics, security model, reminder scheduling pipeline, database schema, and frontend architecture for HuntLog.
 
 ---
 
 ## 1. High-Level Architecture and Request Flow
 
-HuntLog follows a layered, domain-driven Spring Boot architecture with separation of concerns. The frontend is served directly as static SPA files without a server-side rendering template engine.
+HuntLog follows a layered, domain-driven Spring Boot architecture with strict separation of concerns.
 
 ```mermaid
 flowchart TD
@@ -21,19 +21,27 @@ flowchart TD
         AuthCtrl["AuthController\n(/api/v1/auth/**)"]
         AppCtrl["JobApplicationController\n(/api/v1/applications/**)"]
         AnalyticsCtrl["AnalyticsController\n(/api/v1/analytics)"]
+        UserCtrl["UserController\n(/api/v1/users/**)"]
     end
 
     subgraph ServiceLayer ["Business Logic and Domain"]
         AuthService["AuthService\n(BCrypt Hashing, Token Generation)"]
         AppService["JobApplicationService\n(User Scoping and Pipeline Validation)"]
         AnalyticsService["AnalyticsService\n(Metrics, Response Rates, Projections)"]
+        UserService["UserService\n(User Notification Preferences)"]
+        ReminderService["ReminderService\n(Scheduled Stale Pipeline Scanner)"]
+        EmailService["EmailService\n(JavaMailSender Template Dispatcher)"]
         StateMachine["ApplicationStateMachine\n(Enum State Transition Validator)"]
     end
 
     subgraph PersistenceLayer ["Persistence Layer"]
         UserRepo[("UserRepository\n(users table)")]
         AppRepo[("JobApplicationRepository\n(job_applications table)")]
-        MySQL[("MySQL 8.0 Database\n(Flyway V1 and V2 Migrations)")]
+        MySQL[("MySQL 8.0 Database\n(Flyway Migrations V1, V2, V3)")]
+    end
+
+    subgraph ExternalMail ["Mail Delivery"]
+        SMTP["SMTP Server\n(Mailtrap / Gmail)"]
     end
 
     Client -->|Public Static Files or Auth| AuthCtrl
@@ -41,6 +49,7 @@ flowchart TD
     JwtFilter -->|Populates| SecurityCtx
     JwtFilter -->|Routes Request| AppCtrl
     JwtFilter -->|Routes Request| AnalyticsCtrl
+    JwtFilter -->|Routes Request| UserCtrl
     
     AuthCtrl --> AuthService
     AuthService --> UserRepo
@@ -50,10 +59,18 @@ flowchart TD
     AppService --> SecurityCtx
     AppService --> StateMachine
     AppService --> AppRepo
+
+    UserCtrl --> UserService
+    UserService --> SecurityCtx
+    UserService --> UserRepo
     
     AnalyticsCtrl --> AnalyticsService
     AnalyticsService --> SecurityCtx
     AnalyticsService --> AppRepo
+
+    ReminderService --> AppRepo
+    ReminderService --> EmailService
+    EmailService --> SMTP
     
     UserRepo --> MySQL
     AppRepo --> MySQL
@@ -109,7 +126,34 @@ Every API response embeds `allowedNextStatuses: [...]`, enabling client frontend
 
 ---
 
-## 3. Frontend Architecture
+## 3. Automated Reminder Pipeline
+
+The reminder subsystem identifies neglected job applications and sends consolidated email digests:
+
+```mermaid
+flowchart TD
+    CronTrigger(["Cron Trigger\n(app.reminders.cron)"]) --> CheckEnabled{"Reminders Enabled?"}
+    CheckEnabled -- No --> LogSkip["Log: Reminders disabled, skipping"]
+    CheckEnabled -- Yes --> QueryDB["Query Stale Applications\n(Status IN APPLIED, SCREENING, INTERVIEW\nAND lastUpdated < now - staleDays\nAND emailRemindersEnabled = true)"]
+    
+    QueryDB --> GroupByUser["Group Applications by User"]
+    GroupByUser --> IterateUsers["For each User with Stale Applications"]
+    
+    IterateUsers --> BuildEmail["Format Consolidated Plain-Text Digest"]
+    BuildEmail --> SendMail["Send via JavaMailSender (SMTP)"]
+    SendMail --> ErrorCatch{"Send Successful?"}
+    ErrorCatch -- Yes --> LogSuccess["Log Success"]
+    ErrorCatch -- No (Exception) --> LogError["Log Error (Continue loop without throwing)"]
+```
+
+### Key Engineering Guarantees
+- **Consolidation**: Stale applications are grouped per user so candidates receive one unified summary email instead of multiple disjointed messages.
+- **Fault Isolation**: Email dispatch failures for one user are logged without terminating the loop, ensuring remaining users still receive their reminders.
+- **Scoped Querying**: Uses JPQL with `JOIN FETCH` to prevent N+1 queries when loading user details.
+
+---
+
+## 4. Frontend Architecture
 
 The frontend is implemented as a lightweight Single Page Application (SPA) without third-party frameworks:
 - **Location**: `src/main/resources/static/` (`index.html`, `styles.css`, `app.js`).
@@ -119,7 +163,7 @@ The frontend is implemented as a lightweight Single Page Application (SPA) witho
 
 ---
 
-## 4. Analytics and Metrics Pipeline
+## 5. Analytics and Metrics Pipeline
 
 The `AnalyticsService` executes user-scoped aggregate queries to compute real-time metrics:
 
@@ -130,7 +174,7 @@ The `AnalyticsService` executes user-scoped aggregate queries to compute real-ti
 
 ---
 
-## 5. Security and Multi-Tenant Data Isolation
+## 6. Security and Multi-Tenant Data Isolation
 
 ### Stateless Authentication
 - **Algorithm**: HMAC-SHA512 (`HS512`) with 256+ bit secret keys.
@@ -163,7 +207,7 @@ Attempting to access or modify another user's application produces a `404 Not Fo
 
 ---
 
-## 6. Database Schema and Migrations
+## 7. Database Schema and Migrations
 
 Database schema versioning is managed via Flyway migrations under `src/main/resources/db/migration`:
 
@@ -178,6 +222,7 @@ erDiagram
         VARCHAR(150) email "NOT NULL, UNIQUE"
         VARCHAR(255) password "NOT NULL (BCrypt hash)"
         VARCHAR(100) name "NOT NULL"
+        BOOLEAN email_reminders_enabled "NOT NULL, DEFAULT TRUE"
         DATETIME(6) created_at "NOT NULL"
     }
 
@@ -198,10 +243,11 @@ erDiagram
 ### Migrations Timeline
 - `V1__create_job_applications_table.sql`: Creates initial `job_applications` table.
 - `V2__create_users_and_link_applications.sql`: Creates `users` table, adds `user_id` foreign key constraint, and indexes `idx_job_applications_user_id`.
+- `V3__add_email_preferences.sql`: Adds `email_reminders_enabled` boolean column to `users` table for user notification controls.
 
 ---
 
-## 7. Global Exception and Error Handling
+## 8. Global Exception and Error Handling
 
 All controller errors are processed by `GlobalExceptionHandler` and returned in a standard RFC 7807 format:
 

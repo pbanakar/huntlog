@@ -14,8 +14,23 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 app:
   jwt:
     secret: ${JWT_SECRET:dev-secret-key-minimum-256-bits-long-change-in-production-environment}
     expiration-ms: 86400000  # 24 hours
+  reminders:
+    stale-days: ${REMINDER_STALE_DAYS:7}
+    enabled: ${REMINDERS_ENABLED:true}
+    cron: ${REMINDER_CRON:0 0 9 * * *}

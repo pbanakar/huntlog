@@ -26,6 +26,14 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/huntlog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DB_USER: huntlog
       DB_PASS: huntlog
+      # Mailtrap SMTP Configuration for local testing
+      # To get free credentials: Sign up at mailtrap.io -> Inboxes -> Email Testing -> SMTP Settings
+      MAIL_HOST: sandbox.smtp.mailtrap.io
+      MAIL_PORT: 2525
+      MAIL_USERNAME: ${MAILTRAP_USERNAME:-}
+      MAIL_PASSWORD: ${MAILTRAP_PASSWORD:-}
+      REMINDERS_ENABLED: "true"
+      REMINDER_STALE_DAYS: "7"
     depends_on:
       mysql:
         condition: service_healthy

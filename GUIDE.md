@@ -1,6 +1,6 @@
 # HuntLog — User and Beginner Guide
 
-This guide provides end-to-end instructions for running HuntLog, using the web dashboard, interacting with the REST API, and managing data.
+This guide provides end-to-end instructions for running HuntLog, using the web dashboard, configuring automated email reminders, interacting with the REST API, and managing data.
 
 For technical architecture and database design, see [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
 
@@ -19,6 +19,10 @@ For technical architecture and database design, see [ARCHITECTURE.md](file:///c:
 ### Authentication and Data Isolation
 - Authentication uses JSON Web Tokens (JWT).
 - All job application data is strictly scoped to the authenticated user ID. Users can only access and modify their own applications.
+
+### Automated Follow-Up Reminders
+- HuntLog runs a background scheduled job that identifies pending applications (in APPLIED, SCREENING, or INTERVIEW) that have not been updated in 7 or more days.
+- A single consolidated email is sent to each user summarizing all their stale applications.
 
 ---
 
@@ -71,7 +75,59 @@ mvn spring-boot:run
 
 ---
 
-## 4. Using the Web Dashboard
+## 4. Email Reminders Setup and Testing
+
+HuntLog includes an automated reminder system powered by Spring Boot Scheduling and JavaMailSender.
+
+### Setting Up Mailtrap for Local Testing
+
+Mailtrap is a safe SMTP sandbox for testing emails without sending messages to real addresses.
+
+1. Create a free account at https://mailtrap.io
+2. Navigate to **Email Testing** > **Inboxes** > **SMTP Settings**
+3. Select **Java / Spring Boot** or copy the credentials:
+   - Host: `sandbox.smtp.mailtrap.io`
+   - Port: `2525`
+   - Username and Password
+4. Create a `.env` file in the project root:
+   ```env
+   MAILTRAP_USERNAME=your_mailtrap_username
+   MAILTRAP_PASSWORD=your_mailtrap_password
+   ```
+
+### Manually Triggering Reminders for Fast Testing
+
+By default, the reminder job runs daily at 9:00 AM (`0 0 9 * * *`). To test immediately in development, override the cron expression in your environment or docker-compose:
+
+```yaml
+REMINDER_CRON: "*/30 * * * * *" # Runs every 30 seconds
+REMINDER_STALE_DAYS: "0"         # Treats all pending apps as stale immediately
+```
+
+When triggered, check your Mailtrap inbox to view the formatted plain-text reminder containing company names, roles, statuses, and links.
+
+### Disabling Email Reminders
+
+#### Method 1: Per-User Preference (Recommended)
+Users can disable reminder emails via the preferences API:
+
+```powershell
+'{"emailRemindersEnabled":false}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/users/me/preferences `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+#### Method 2: System-Wide Config
+Disable the scheduler globally by setting the environment variable:
+```env
+REMINDERS_ENABLED=false
+```
+
+---
+
+## 5. Using the Web Dashboard
 
 1. **Register an Account**: Open `http://localhost:8080` and switch to the "Register" tab. Enter your name, email, and password.
 2. **View Live Analytics**: The dashboard displays real-time statistics including total applications, applications submitted this week, response rate percentage, and oldest pending application age.
@@ -82,7 +138,7 @@ mvn spring-boot:run
 
 ---
 
-## 5. End-to-End API Walkthrough
+## 6. End-to-End API Walkthrough
 
 If you prefer to interact directly with the REST API using PowerShell and curl:
 
@@ -188,7 +244,22 @@ Response (`422 Unprocessable Entity`):
 }
 ```
 
-### Step 7: Retrieve Analytics
+### Step 7: Manage User Email Preferences
+
+```powershell
+# 1. Fetch current preference
+curl.exe -s -X GET http://localhost:8080/api/v1/users/me/preferences `
+  -H "Authorization: Bearer $token"
+
+# 2. Update preference to false
+'{"emailRemindersEnabled":false}' | `
+  curl.exe -s -X PUT http://localhost:8080/api/v1/users/me/preferences `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "@-"
+```
+
+### Step 8: Retrieve Analytics
 
 ```powershell
 curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
@@ -222,7 +293,7 @@ Response (`200 OK`):
 }
 ```
 
-### Step 8: Delete Application
+### Step 9: Delete Application
 
 ```powershell
 curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
@@ -233,7 +304,7 @@ Response: `204 No Content`
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 ### Why use `| curl.exe ... -d "@-"` in PowerShell?
 PowerShell command parsing can strip double quotes from inline JSON string arguments. Piping JSON strings directly to `curl.exe -d "@-"` preserves formatting reliably.

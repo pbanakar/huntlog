@@ -59,4 +59,13 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
            "GROUP BY j.company " +
            "ORDER BY COUNT(j) DESC, j.company ASC")
     java.util.List<com.pbanakar.huntlog.repository.projection.CompanyCount> findCompanyCountsByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT j FROM JobApplication j " +
+           "JOIN FETCH j.user u " +
+           "WHERE j.status IN :statuses " +
+           "AND j.lastUpdated < :cutoff " +
+           "AND u.emailRemindersEnabled = true")
+    java.util.List<JobApplication> findStaleApplications(
+            @Param("statuses") java.util.List<ApplicationStatus> statuses,
+            @Param("cutoff") java.time.LocalDateTime cutoff);
 }

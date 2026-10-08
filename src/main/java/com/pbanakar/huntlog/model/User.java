@@ -37,6 +37,9 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "email_reminders_enabled", nullable = false)
+    private Boolean emailRemindersEnabled = true;
+
     public User() {
     }
 
@@ -80,5 +83,13 @@ public class User {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Boolean getEmailRemindersEnabled() {
+        return emailRemindersEnabled;
+    }
+
+    public void setEmailRemindersEnabled(Boolean emailRemindersEnabled) {
+        this.emailRemindersEnabled = emailRemindersEnabled;
     }
 }

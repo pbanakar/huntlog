@@ -22,7 +22,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
      */
     @Query("SELECT j FROM JobApplication j WHERE " +
            "(:status IS NULL OR j.status = :status) AND " +
-           "(:company IS NULL OR LOWER(j.company) LIKE LOWER(CONCAT('%', :company, '%')))")
+           "(:company IS NULL OR LOWER(j.company) LIKE LOWER(CONCAT('%', CAST(:company AS string), '%')))")
     Page<JobApplication> findAllWithFilters(@Param("status") ApplicationStatus status,
                                             @Param("company") String company,
                                             Pageable pageable);
@@ -33,7 +33,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
      */
     @Query("SELECT j FROM JobApplication j WHERE j.user.id = :userId AND " +
            "(:status IS NULL OR j.status = :status) AND " +
-           "(:company IS NULL OR LOWER(j.company) LIKE LOWER(CONCAT('%', :company, '%')))")
+           "(:company IS NULL OR LOWER(j.company) LIKE LOWER(CONCAT('%', CAST(:company AS string), '%')))")
     Page<JobApplication> findAllByUserWithFilters(@Param("userId") Long userId,
                                                    @Param("status") ApplicationStatus status,
                                                    @Param("company") String company,

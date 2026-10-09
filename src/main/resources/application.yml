@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DATABASE_URL:${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:huntlog}}}
-    username: ${DB_USER:huntlog}
-    password: ${DB_PASS:huntlog}
+    url: ${DATABASE_URL:${DB_URL:jdbc:postgresql://${DB_HOST:${PGHOST:localhost}}:${DB_PORT:${PGPORT:5432}}/${DB_NAME:${PGDATABASE:${POSTGRES_DB:huntlog}}}}}
+    username: ${DB_USER:${DB_USERNAME:${PGUSER:${POSTGRES_USER:huntlog}}}}
+    password: ${DB_PASS:${DB_PASSWORD:${PGPASSWORD:${POSTGRES_PASSWORD:huntlog}}}}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

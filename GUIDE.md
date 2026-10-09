@@ -3,18 +3,19 @@
 This guide provides end-to-end instructions for running HuntLog, using the web dashboard, configuring automated email reminders, interacting with the REST API, and managing data.
 
 For technical architecture and database design, see [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
+For cloud deployment, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md).
 
 ---
 
 ## 1. Key Concepts
 
 ### Data Persistence
-- HuntLog stores application data in a MySQL 8.0 database.
-- When running with Docker, data persists inside a Docker volume named `mysql_data`. Stopping or restarting containers does not erase your data.
+- HuntLog stores application data in a PostgreSQL 16 database.
+- When running with Docker, data persists inside a Docker volume named `huntlog-postgres-data`. Stopping or restarting containers does not erase your data.
 
 ### Database Port Mapping
-- Host machines often run local services on port 3306.
-- Docker maps the MySQL database to host port `3307` to avoid port collisions, while inside the container network it communicates on default port 3306.
+- Docker maps the PostgreSQL database to host port `5432` for local development.
+- In production on Railway, connection parameters are supplied seamlessly via the `DATABASE_URL` environment variable.
 
 ### Authentication and Data Isolation
 - Authentication uses JSON Web Tokens (JWT).
@@ -40,7 +41,7 @@ Verify that the following tools are installed:
 
 ### Method A: Docker Compose (Recommended)
 
-Starts both the MySQL database and the Spring Boot application container.
+Starts both the PostgreSQL database and the Spring Boot application container.
 
 ```powershell
 # 1. Package the application JAR
@@ -63,11 +64,11 @@ docker compose down
 
 ### Method B: Local Development Mode
 
-Runs the Spring Boot application locally while connecting to MySQL in Docker.
+Runs the Spring Boot application locally while connecting to PostgreSQL in Docker.
 
 ```powershell
-# 1. Start only the MySQL database
-docker compose up mysql -d
+# 1. Start only the PostgreSQL database
+docker compose up postgres -d
 
 # 2. Run the Spring Boot application
 mvn spring-boot:run
@@ -95,16 +96,9 @@ Mailtrap is a safe SMTP sandbox for testing emails without sending messages to r
    MAILTRAP_PASSWORD=your_mailtrap_password
    ```
 
-### Manually Triggering Reminders for Fast Testing
+### Using Real Gmail SMTP in Production
 
-By default, the reminder job runs daily at 9:00 AM (`0 0 9 * * *`). To test immediately in development, override the cron expression in your environment or docker-compose:
-
-```yaml
-REMINDER_CRON: "*/30 * * * * *" # Runs every 30 seconds
-REMINDER_STALE_DAYS: "0"         # Treats all pending apps as stale immediately
-```
-
-When triggered, check your Mailtrap inbox to view the formatted plain-text reminder containing company names, roles, statuses, and links.
+For production on Railway, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md) for generating a 16-character Google App Password.
 
 ### Disabling Email Reminders
 
@@ -315,4 +309,4 @@ Run:
 docker compose down -v
 docker compose up --build -d
 ```
-The `-v` flag removes the persistent MySQL volume, allowing all Flyway migrations to run from scratch.
+The `-v` flag removes the persistent PostgreSQL volume, allowing all Flyway migrations to run from scratch.

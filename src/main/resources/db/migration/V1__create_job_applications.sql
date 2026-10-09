@@ -1,6 +1,8 @@
 -- ============================================================================
 -- V1__create_job_applications.sql
 -- ============================================================================
+-- Phase 1: Core Job Application Schema (Updated for PostgreSQL & Railway)
+--
 -- Why Flyway over hibernate.ddl-auto=create?
 --   1. Version-controlled schema: every migration is a numbered file in SCM,
 --      so we know exactly what schema version any environment is running.
@@ -13,12 +15,12 @@
 -- ============================================================================
 
 CREATE TABLE job_applications (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id           BIGSERIAL PRIMARY KEY,
     company      VARCHAR(100) NOT NULL,
     role         VARCHAR(100) NOT NULL,
     status       VARCHAR(20)  NOT NULL,
     applied_date DATE         NOT NULL,
-    last_updated DATETIME(6),
+    last_updated TIMESTAMP,
     job_url      VARCHAR(500),
     notes        TEXT,
     location     VARCHAR(100)

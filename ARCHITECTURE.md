@@ -22,6 +22,7 @@ flowchart TD
         AppCtrl["JobApplicationController\n(/api/v1/applications/**)"]
         AnalyticsCtrl["AnalyticsController\n(/api/v1/analytics)"]
         UserCtrl["UserController\n(/api/v1/users/**)"]
+        Actuator["Actuator Endpoint\n(/actuator/health)"]
     end
 
     subgraph ServiceLayer ["Business Logic and Domain"]
@@ -37,14 +38,14 @@ flowchart TD
     subgraph PersistenceLayer ["Persistence Layer"]
         UserRepo[("UserRepository\n(users table)")]
         AppRepo[("JobApplicationRepository\n(job_applications table)")]
-        MySQL[("MySQL 8.0 Database\n(Flyway Migrations V1, V2, V3)")]
+        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1, V2, V3)")]
     end
 
     subgraph ExternalMail ["Mail Delivery"]
         SMTP["SMTP Server\n(Mailtrap / Gmail)"]
     end
 
-    Client -->|Public Static Files or Auth| AuthCtrl
+    Client -->|Public Static Files, Health, or Auth| AuthCtrl
     Client -->|Authenticated Request with Bearer Token| JwtFilter
     JwtFilter -->|Populates| SecurityCtx
     JwtFilter -->|Routes Request| AppCtrl
@@ -72,8 +73,8 @@ flowchart TD
     ReminderService --> EmailService
     EmailService --> SMTP
     
-    UserRepo --> MySQL
-    AppRepo --> MySQL
+    UserRepo --> PostgreSQL
+    AppRepo --> PostgreSQL
 ```
 
 ---
@@ -158,6 +159,7 @@ flowchart TD
 The frontend is implemented as a lightweight Single Page Application (SPA) without third-party frameworks:
 - **Location**: `src/main/resources/static/` (`index.html`, `styles.css`, `app.js`).
 - **Routing**: Hash-based routing (`#login`, `#register`, `#dashboard`) with immediate redirection if unauthenticated.
+- **Single Service Integration**: Served directly from Spring Boot alongside the REST API, avoiding CORS configuration issues across cloud deployments.
 - **State Management**: Lightweight client-side application caching for real-time search and filter without redundant network queries.
 - **Security**: JWT stored in `localStorage` for simple client persistence, sent via standard `Authorization: Bearer <token>` headers.
 
@@ -167,7 +169,7 @@ The frontend is implemented as a lightweight Single Page Application (SPA) witho
 
 The `AnalyticsService` executes user-scoped aggregate queries to compute real-time metrics:
 
-- **Database Aggregation**: Utilizes Spring Data JPA projections (`CompanyCount`) to calculate top company distribution in MySQL without loading entire entity collections into memory.
+- **Database Aggregation**: Utilizes Spring Data JPA projections (`CompanyCount`) to calculate top company distribution in PostgreSQL without loading entire entity collections into memory.
 - **Response Rate Formula**:
   $$\text{Response Rate} = \frac{\text{Total} - \text{APPLIED} - \text{WITHDRAWN}}{\text{Total}} \times 100$$
 - **Velocity Metrics**: Calculates average days from application submission to first status update for active candidates.
@@ -190,7 +192,7 @@ sequenceDiagram
     actor Alice as Alice (User ID 1)
     actor Bob as Bob (User ID 2)
     participant API as HuntLog REST API
-    participant DB as MySQL Database
+    participant DB as PostgreSQL Database
 
     Alice->>API: POST /api/v1/applications (Google SWE) + Alice JWT
     API->>DB: INSERT INTO job_applications (user_id=1, company='Google', status='APPLIED')
@@ -218,22 +220,22 @@ erDiagram
     USERS ||--o{ JOB_APPLICATIONS : "owns"
     
     USERS {
-        BIGINT id PK "AUTO_INCREMENT"
+        BIGSERIAL id PK
         VARCHAR(150) email "NOT NULL, UNIQUE"
         VARCHAR(255) password "NOT NULL (BCrypt hash)"
         VARCHAR(100) name "NOT NULL"
         BOOLEAN email_reminders_enabled "NOT NULL, DEFAULT TRUE"
-        DATETIME(6) created_at "NOT NULL"
+        TIMESTAMP created_at "NOT NULL"
     }
 
     JOB_APPLICATIONS {
-        BIGINT id PK "AUTO_INCREMENT"
+        BIGSERIAL id PK
         BIGINT user_id FK "NOT NULL, INDEXED"
         VARCHAR(100) company "NOT NULL"
         VARCHAR(100) role "NOT NULL"
         VARCHAR(20) status "NOT NULL"
         DATE applied_date "NOT NULL"
-        DATETIME(6) last_updated "NOT NULL"
+        TIMESTAMP last_updated "NULLABLE"
         VARCHAR(500) job_url "NULLABLE"
         VARCHAR(100) location "NULLABLE"
         TEXT notes "NULLABLE"
@@ -241,7 +243,7 @@ erDiagram
 ```
 
 ### Migrations Timeline
-- `V1__create_job_applications_table.sql`: Creates initial `job_applications` table.
+- `V1__create_job_applications.sql`: Creates initial `job_applications` table with `BIGSERIAL` primary key and timestamps.
 - `V2__create_users_and_link_applications.sql`: Creates `users` table, adds `user_id` foreign key constraint, and indexes `idx_job_applications_user_id`.
 - `V3__add_email_preferences.sql`: Adds `email_reminders_enabled` boolean column to `users` table for user notification controls.
 

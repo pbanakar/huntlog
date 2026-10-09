@@ -10,6 +10,10 @@
 // ==========================================
 // --- CONFIG ---
 // ==========================================
+// Note on API_BASE:
+// Using relative path '/api/v1' is intentional. Spring Boot serves both the static frontend
+// assets and the REST API from the same container/service on Railway (and local Docker),
+// eliminating CORS configuration and hardcoded domain dependencies across environments.
 const API_BASE = '/api/v1';
 
 // Global cache for client-side search & filtering

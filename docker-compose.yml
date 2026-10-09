@@ -1,18 +1,17 @@
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: huntlog-mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: huntlog-postgres
     environment:
-      MYSQL_DATABASE: huntlog
-      MYSQL_USER: huntlog
-      MYSQL_PASSWORD: huntlog
-      MYSQL_ROOT_PASSWORD: root
+      POSTGRES_DB: huntlog
+      POSTGRES_USER: huntlog
+      POSTGRES_PASSWORD: huntlog
     ports:
-      - "3307:3306"
+      - "5432:5432"
     volumes:
-      - huntlog-mysql-data:/var/lib/mysql
+      - huntlog-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "huntlog", "-phuntlog"]
+      test: ["CMD-SHELL", "pg_isready -U huntlog -d huntlog"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,7 +22,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/huntlog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_URL: jdbc:postgresql://postgres:5432/huntlog
       DB_USER: huntlog
       DB_PASS: huntlog
       # Mailtrap SMTP Configuration for local testing
@@ -35,8 +34,8 @@ services:
       REMINDERS_ENABLED: "true"
       REMINDER_STALE_DAYS: "7"
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
 
 volumes:
-  huntlog-mysql-data:
+  huntlog-postgres-data:

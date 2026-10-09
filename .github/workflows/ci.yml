@@ -11,17 +11,16 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mysql:
-        image: mysql:8.0
+      postgres:
+        image: postgres:16-alpine
         env:
-          MYSQL_DATABASE: huntlog
-          MYSQL_USER: huntlog
-          MYSQL_PASSWORD: huntlog
-          MYSQL_ROOT_PASSWORD: root
+          POSTGRES_DB: huntlog
+          POSTGRES_USER: huntlog
+          POSTGRES_PASSWORD: huntlog
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -u huntlog -phuntlog"
+          --health-cmd="pg_isready -U huntlog -d huntlog"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -40,6 +39,6 @@ jobs:
       - name: Build and Test
         run: mvn verify -B
         env:
-          DB_URL: jdbc:mysql://localhost:3306/huntlog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          DB_URL: jdbc:postgresql://localhost:5432/huntlog
           DB_USER: huntlog
           DB_PASS: huntlog

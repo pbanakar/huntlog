@@ -1,94 +1,117 @@
-# HuntLog — Production Deployment Guide (Railway)
+# HuntLog — Production Deployment Guide (Render + Neon)
 
-This guide walks through deploying HuntLog to Railway with managed PostgreSQL, automated HTTPS, environment variable configuration, and real Gmail SMTP for email reminders.
+This guide walks through deploying HuntLog to production for permanent, zero-cost hosting using Render for application compute, Neon for serverless PostgreSQL, UptimeRobot for 24/7 keep-alive monitoring, and Mailtrap or Gmail SMTP for email reminders.
 
 ---
 
-## 1. Prerequisites
+## 1. Production Architecture Overview
+
+HuntLog uses an architecture that separates the web server from the database to guarantee zero data loss and avoid cloud vendor lock-in or trial expirations:
+
+- **Compute**: Render.com Free Web Service (Docker container built from source via multi-stage Dockerfile).
+- **Database**: Neon.tech Serverless PostgreSQL (Persistent storage, no expiration, automated backups).
+- **Keep-Alive**: UptimeRobot HTTP monitor pinging `/actuator/health` every 5-10 minutes to prevent Render idle spin-down.
+- **Email Delivery**: SMTP via Mailtrap (development/testing) or Gmail App Password (production).
+- **Cost**: $0.00 / month indefinitely.
+
+Note: Earlier deployment on Railway was retired to avoid the 30-day trial limitation and credit expiration.
+
+---
+
+## 2. Prerequisites
 
 Before beginning deployment, ensure you have:
 
-1. A GitHub account with the `pbanakar/huntlog` repository pushed.
-2. A free account at [Railway.app](https://railway.app).
-3. A Google/Gmail account with 2-Factor Authentication (2FA) enabled (for email reminders).
+1. A GitHub account with the `pbanakar/huntlog` repository.
+2. A free account at [Neon.tech](https://neon.tech) (no credit card required).
+3. A free account at [Render.com](https://render.com) (no credit card required).
+4. A free account at [UptimeRobot.com](https://uptimerobot.com) (no credit card required).
+5. SMTP credentials (Mailtrap Sandbox credentials or a 16-character Google App Password).
 
 ---
 
-## 2. Generating a Gmail App Password (for Production Reminders)
+## 3. Step 1: Provision Neon PostgreSQL Database
 
-To send real reminder emails from your Gmail account without exposing your master account password:
-
-1. Log in to your Google Account at https://myaccount.google.com/
-2. In the left menu, select **Security**.
-3. Under *How you sign in to Google*, ensure **2-Step Verification** is turned ON.
-4. Search for **App passwords** in the top search bar (or go directly to https://myaccount.google.com/apppasswords).
-5. Enter an app name (e.g. `HuntLog Production`) and click **Create**.
-6. Google will generate a 16-character password (e.g. `abcd efgh ijkl mnop`).
-7. Copy this password (without spaces). This will be your `MAIL_PASSWORD` in Railway.
+1. Log in to [Neon.tech](https://neon.tech) using your GitHub account.
+2. Click **Create Project**:
+   - Project Name: `huntlog`
+   - Region: Select a region close to your users (e.g. `AWS Asia Pacific 1 (Singapore)` or `AWS US East`).
+   - PostgreSQL Version: `16` or newer.
+3. Click the green **Connect** button on the project dashboard.
+4. Select the **Spring Boot** or **Parameters only** option from the dropdown.
+5. Note the following values:
+   - **JDBC URL**: `jdbc:postgresql://<host>/neondb?sslmode=require`
+   - **Database User**: `neondb_owner` (or configured user)
+   - **Password**: Your database password
 
 ---
 
-## 3. Step-by-Step Railway Deployment
+## 4. Step 2: Deploy Spring Boot Web Service on Render
 
-### Step 1: Create a New Project on Railway
-1. Log in to [Railway](https://railway.app).
-2. Click **+ New Project**.
-3. Select **Deploy from GitHub repo**.
-4. Choose `pbanakar/huntlog` from your repository list.
-
-### Step 2: Provision Managed PostgreSQL Database
-1. Inside your new Railway project canvas, click **+ Create** or **+ New Service**.
-2. Select **Database** > **PostgreSQL**.
-3. Railway automatically provisions a PostgreSQL 16 instance and generates an internal connection variable `DATABASE_URL`.
-
-### Step 3: Configure Environment Variables
-1. Click on the **huntlog** application service block.
-2. Navigate to the **Variables** tab.
-3. Click **+ New Variable** (or **Raw Editor**) and add the following variables:
+1. Log in to [Render.com](https://render.com) using your GitHub account.
+2. Click **New +** > **Web Service**.
+3. Select **Build and deploy from a Git repository** and connect `pbanakar/huntlog`.
+4. Configure the web service:
+   - **Name**: `huntlog`
+   - **Region**: Same region as your Neon database (e.g. `Singapore` or `US East`).
+   - **Runtime**: `Docker`
+   - **Instance Type**: `Free` ($0/month)
+5. Scroll down to **Environment Variables** and enter the following keys and values:
 
 | Variable Name | Value | Description |
 |---|---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` | Auto-linked to the Railway PostgreSQL database |
-| `JWT_SECRET` | `your_generated_256_bit_random_secret_string` | Secret key for signing authentication tokens |
-| `MAIL_HOST` | `smtp.gmail.com` | Production SMTP host |
+| `PORT` | `8080` | Internal Spring Boot HTTP port |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<neon-host>/neondb?sslmode=require` | Neon JDBC connection string |
+| `DB_USERNAME` | `<neon-username>` | Database username |
+| `DB_PASSWORD` | `<neon-password>` | Database password |
+| `JWT_SECRET` | `404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970` | 256-bit secret key for signing tokens |
+| `MAIL_HOST` | `sandbox.smtp.mailtrap.io` | SMTP host (`smtp.gmail.com` for Gmail) |
 | `MAIL_PORT` | `587` | SMTP port with STARTTLS |
-| `MAIL_USERNAME` | `your.email@gmail.com` | Your Gmail address |
-| `MAIL_PASSWORD` | `your_16_char_gmail_app_password` | App password generated in Section 2 |
+| `MAIL_USERNAME` | `<smtp-username>` | Mailtrap username or Gmail address |
+| `MAIL_PASSWORD` | `<smtp-password>` | Mailtrap password or Google App Password |
+| `MAIL_FROM` | `no-reply@huntlog.dev` | Sender address |
 | `REMINDERS_ENABLED` | `true` | Enables background daily reminder scanner |
-| `REMINDER_STALE_DAYS` | `7` | Threshold in days to flag pending applications |
-| `REMINDER_CRON` | `0 0 9 * * *` | Daily schedule at 9:00 AM UTC |
-| `SPRING_PROFILES_ACTIVE` | `prod` | Activates production Spring profile |
+| `REMINDER_STALE_DAYS` | `7` | Days threshold to flag pending applications |
+| `REMINDER_CRON` | `0 0 9 * * *` | Daily scan cron schedule |
 
-> Note: Railway automatically maps `${{Postgres.DATABASE_URL}}` into `DATABASE_URL`, which Spring Boot reads directly.
-
-### Step 4: Generate Public Domain & Deploy
-1. In the **huntlog** service, navigate to **Settings** > **Networking** > **Public Networking**.
-2. Click **Generate Domain** (e.g. `huntlog-production.up.railway.app`).
-3. Railway will build the `Dockerfile`, run the Actuator health checks (`/actuator/health`), and serve the app over HTTPS.
+6. Click **Create Web Service**.
+7. Render will build the multi-stage Docker container using the Google Cloud Maven Central mirror and start the service.
+8. Once deployment displays **Live**, note your public HTTPS URL (e.g. `https://huntlog-coga.onrender.com`).
 
 ---
 
-## 4. Verification After Deployment
+## 5. Step 3: Configure 24/7 Keep-Alive via UptimeRobot
 
-Once the build finishes and status displays **Active**:
+Render free tier instances automatically spin down after 15 minutes of inactivity. To keep the instance warm and eliminate cold-start delays:
 
-1. Open your public Railway URL in a browser:
-   `https://huntlog-production.up.railway.app`
-2. **Register**: Create your production admin account.
-3. **Add Applications**: Add an active application (e.g. Google, Microsoft).
-4. **Inspect Analytics**: Confirm stats cards load from `/api/v1/analytics`.
-5. **Health Check**: Verify `https://huntlog-production.up.railway.app/actuator/health` returns `{"status":"UP"}`.
+1. Log in to [UptimeRobot.com](https://uptimerobot.com).
+2. Click **Add New Monitor**.
+3. Fill in the monitor settings:
+   - **Monitor Type**: `HTTP(s)`
+   - **Friendly Name**: `HuntLog Health`
+   - **URL to monitor**: `https://<your-render-domain>.onrender.com/actuator/health`
+   - **Monitoring Interval**: `5 minutes` or `10 minutes`
+4. Click **Create Monitor**.
+
+UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping the container active 24/7 without charging any compute fees.
 
 ---
 
-## 5. Maintenance and Troubleshooting
+## 6. Verification and Health Checks
 
-### Database Migrations
-Flyway runs automatically on container boot against the PostgreSQL database. All tables (`users`, `job_applications`) and indices are created cleanly on first launch.
+1. **Dashboard UI**:
+   Open `https://<your-render-domain>.onrender.com` in your browser.
+   - Register a new account.
+   - Verify login, adding applications, and analytics cards.
 
-### Viewing Logs
-To view live runtime logs:
-1. Open your project on Railway.
-2. Click the **huntlog** service > **Deployments** > **View Logs**.
-3. Watch scheduler scan logs:
-   `Sent reminder to your.email@gmail.com for X stale applications`
+2. **Health Check Endpoint**:
+   ```bash
+   curl https://<your-render-domain>.onrender.com/actuator/health
+   ```
+   Expected response:
+   ```json
+   {"status":"UP"}
+   ```
+
+3. **Database Persistence**:
+   Flyway migrations (`V1`, `V2`, `V3`) run automatically on startup against Neon PostgreSQL. Tables and records persist permanently across any container redeployments.

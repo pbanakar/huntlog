@@ -2,13 +2,13 @@
 
 HuntLog is a full-stack job application tracker with lifecycle validation, per-user data isolation, real-time analytics, and automated follow-up email reminders. Built with Java 21, Spring Boot 3, PostgreSQL 16, and a vanilla JavaScript single-page frontend.
 
-Live Demo: https://huntlog-production.up.railway.app (Deployed on Railway)
+Live Demo: https://huntlog-coga.onrender.com (Deployed on Render + Neon PostgreSQL)
 
 ---
 
 ## Documentation
 
-- [Production Deployment Guide](file:///c:/projects/Huntlog/DEPLOYMENT.md): Step-by-step guide to deploying on Railway with PostgreSQL, HTTPS, and Gmail SMTP.
+- [Production Deployment Guide](file:///c:/projects/Huntlog/DEPLOYMENT.md): Step-by-step guide to deploying on Render with Neon PostgreSQL, HTTPS, and Gmail/Mailtrap SMTP.
 - [User and Beginner Guide](file:///c:/projects/Huntlog/GUIDE.md): Local development, dashboard walkthrough, email reminder setup, and API examples.
 - [Architecture and Technical Design](file:///c:/projects/Huntlog/ARCHITECTURE.md): System architecture, finite state machine, security isolation, and database schemas.
 
@@ -18,8 +18,8 @@ Live Demo: https://huntlog-production.up.railway.app (Deployed on Railway)
 
 - **Backend**: Java 21, Spring Boot 3.4.1, Spring Security (Stateless JWT), Spring Data JPA, Spring Mail, Spring Boot Actuator, Flyway Migrations
 - **Frontend**: Vanilla HTML5, CSS3, ES6+ JavaScript (Served statically by Spring Boot, no build step)
-- **Database**: PostgreSQL 16 with automated Flyway versioning
-- **Cloud & Deployment**: Docker, Docker Compose, Railway (Managed PostgreSQL, Auto-HTTPS)
+- **Database**: PostgreSQL 16/18 with automated Flyway versioning (Hosted on Neon)
+- **Cloud & Deployment**: Docker, Docker Compose, Render (Web Service, Auto-HTTPS), Neon (Serverless PostgreSQL), UptimeRobot (24/7 Keep-Alive)
 
 ---
 
@@ -53,20 +53,26 @@ docker compose up --build -d
 
 ---
 
-## Deploy Your Own
+## Deploy Your Own (100% Free Production Stack)
 
-HuntLog is pre-configured for one-click deployment on Railway using `railway.toml` and Docker.
+HuntLog is pre-configured for zero-cost production deployment on Render and Neon PostgreSQL:
+- **Neon.tech**: Free serverless PostgreSQL database (persistent storage, zero expiration).
+- **Render.com**: Free Docker Web Service deployment directly from GitHub.
+- **UptimeRobot**: Free keep-alive ping on `/actuator/health` to prevent idle sleep.
 
-### Environment Variables for Railway:
-- `DATABASE_URL`: Automatically provided by Railway PostgreSQL plugin
+### Environment Variables:
+- `SPRING_DATASOURCE_URL`: Neon JDBC URL (`jdbc:postgresql://<host>/neondb?sslmode=require`)
+- `DB_USERNAME`: Neon database user
+- `DB_PASSWORD`: Neon database password
 - `JWT_SECRET`: 256-bit secret key for authentication tokens
-- `MAIL_HOST`: `smtp.gmail.com`
+- `MAIL_HOST`: `sandbox.smtp.mailtrap.io` or `smtp.gmail.com`
 - `MAIL_PORT`: `587`
-- `MAIL_USERNAME`: Your Gmail address
-- `MAIL_PASSWORD`: 16-character Google App Password (never commit to git)
+- `MAIL_USERNAME`: Mail account username
+- `MAIL_PASSWORD`: Mail account password
+- `MAIL_FROM`: Sender email address
 - `REMINDERS_ENABLED`: `true`
 - `REMINDER_STALE_DAYS`: `7`
 - `REMINDER_CRON`: `0 0 9 * * *`
-- `SPRING_PROFILES_ACTIVE`: `prod`
+- `PORT`: `8080`
 
 For full deployment instructions, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md).

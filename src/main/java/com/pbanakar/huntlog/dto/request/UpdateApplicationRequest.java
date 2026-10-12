@@ -1,19 +1,25 @@
 package com.pbanakar.huntlog.dto.request;
 
 import com.pbanakar.huntlog.enums.ApplicationStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
+@Schema(description = "Request body to update an existing job application")
 public class UpdateApplicationRequest {
 
+    @Schema(description = "Target application status. Transition is validated by the state machine.", example = "SCREENING")
     private ApplicationStatus status;
 
     @Size(max = 2000, message = "Notes must be at most 2000 characters")
+    @Schema(example = "Completed technical phone screen", description = "Updated notes")
     private String notes;
 
     @Size(max = 500, message = "Job URL must be at most 500 characters")
+    @Schema(example = "https://careers.google.com/123", description = "Updated job posting URL")
     private String jobUrl;
 
     @Size(max = 100, message = "Location must be at most 100 characters")
+    @Schema(example = "Remote", description = "Updated work location")
     private String location;
 
     public ApplicationStatus getStatus() {

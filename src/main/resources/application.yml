@@ -46,3 +46,15 @@ app:
     stale-days: ${REMINDER_STALE_DAYS:7}
     enabled: ${REMINDERS_ENABLED:true}
     cron: ${REMINDER_CRON:0 0 9 * * *}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+  show-actuator: false
+

@@ -1,11 +1,13 @@
 package com.pbanakar.huntlog.dto.response;
 
 import com.pbanakar.huntlog.enums.ApplicationStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Schema(description = "Job application with current status and allowed next transitions")
 public class ApplicationResponse {
 
     private Long id;
@@ -17,6 +19,9 @@ public class ApplicationResponse {
     private String jobUrl;
     private String notes;
     private String location;
+
+    @Schema(description = "Valid status transitions from current status. Use these values when calling PUT /api/v1/applications/{id}",
+            example = "[\"SCREENING\", \"REJECTED\", \"WITHDRAWN\"]")
     private List<ApplicationStatus> allowedNextStatuses;
 
     public ApplicationResponse() {

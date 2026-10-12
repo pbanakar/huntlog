@@ -113,5 +113,11 @@ UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping th
    {"status":"UP"}
    ```
 
-3. **Database Persistence**:
+3. **Swagger UI (Interactive API Documentation)**:
+   Open `https://<your-render-domain>.onrender.com/swagger-ui.html` in your browser.
+   - Verify all endpoints are grouped under Authentication, Job Applications, Analytics, and User Preferences.
+   - Click Authorize, paste your JWT token, and test protected endpoints directly.
+
+4. **Database Persistence**:
    Flyway migrations (`V1`, `V2`, `V3`) run automatically on startup against Neon PostgreSQL. Tables and records persist permanently across any container redeployments.
+

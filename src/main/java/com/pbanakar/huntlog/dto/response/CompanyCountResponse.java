@@ -1,8 +1,14 @@
 package com.pbanakar.huntlog.dto.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Count of applications by company")
 public class CompanyCountResponse {
 
+    @Schema(example = "Google", description = "Company name")
     private String company;
+
+    @Schema(example = "3", description = "Total number of applications submitted to this company")
     private Long count;
 
     public CompanyCountResponse() {

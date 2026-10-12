@@ -298,7 +298,24 @@ Response: `204 No Content`
 
 ---
 
-## 7. Troubleshooting
+## 7. Interactive API Documentation (Swagger UI)
+
+HuntLog provides an interactive Swagger UI dashboard powered by Springdoc OpenAPI:
+- Local URL: http://localhost:8080/swagger-ui.html
+- Production URL: https://huntlog-coga.onrender.com/swagger-ui.html
+- OpenAPI Spec: https://huntlog-coga.onrender.com/api-docs
+
+### How to Test Protected Endpoints via Swagger UI:
+1. Open http://localhost:8080/swagger-ui.html in your browser.
+2. Expand the `Authentication` group and run `POST /api/v1/auth/login` (or `/register`) using **Try it out**.
+3. Copy the returned `token` string from the response.
+4. Click the green **Authorize** button at the top right of the Swagger UI page.
+5. Paste your token into the Value box and click **Authorize**.
+6. All protected endpoints (Job Applications, Analytics, User Preferences) will now send your JWT automatically when tested with **Try it out**.
+
+---
+
+## 8. Troubleshooting
 
 ### Why use `| curl.exe ... -d "@-"` in PowerShell?
 PowerShell command parsing can strip double quotes from inline JSON string arguments. Piping JSON strings directly to `curl.exe -d "@-"` preserves formatting reliably.

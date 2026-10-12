@@ -2,9 +2,12 @@ package com.pbanakar.huntlog.dto.response;
 
 import com.pbanakar.huntlog.enums.ApplicationStatus;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
 import java.util.Map;
 
+@Schema(description = "Aggregated job search statistics for the authenticated user")
 public class AnalyticsResponse {
 
     private Long totalApplications;

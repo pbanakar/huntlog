@@ -50,6 +50,19 @@ docker compose up --build -d
 - Web Application: http://localhost:8080
 - REST API Base: http://localhost:8080/api/v1
 - Actuator Health: http://localhost:8080/actuator/health
+- Swagger UI (Local): http://localhost:8080/swagger-ui.html
+
+---
+
+## API Documentation
+
+Interactive API documentation is available via Swagger UI:
+- Local: http://localhost:8080/swagger-ui.html
+- Live: https://huntlog-coga.onrender.com/swagger-ui.html
+- OpenAPI Specification: https://huntlog-coga.onrender.com/api-docs
+
+Paste your JWT token in the Authorize button to test protected endpoints interactively.
+
 
 ---
 

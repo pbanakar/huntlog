@@ -1,7 +1,10 @@
 package com.pbanakar.huntlog.dto.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.LocalDateTime;
 
+@Schema(description = "Standard error response returned for all 4xx and 5xx errors")
 public class ErrorResponse {
 
     private LocalDateTime timestamp;

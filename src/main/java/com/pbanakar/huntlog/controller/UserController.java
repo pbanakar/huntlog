@@ -41,4 +41,14 @@ public class UserController {
             @Valid @RequestBody UpdatePreferencesRequest request) {
         return ResponseEntity.ok(userService.updatePreferences(request));
     }
+
+    @DeleteMapping("/me")
+    @Operation(summary = "Delete user account",
+            description = "Permanently delete user account and all associated applications.")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @ApiResponse(responseCode = "204", description = "Account deleted successfully")
+    public ResponseEntity<Void> deleteAccount() {
+        userService.deleteCurrentUser();
+        return ResponseEntity.noContent().build();
+    }
 }

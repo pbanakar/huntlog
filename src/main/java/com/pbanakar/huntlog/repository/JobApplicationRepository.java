@@ -68,4 +68,6 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     java.util.List<JobApplication> findStaleApplications(
             @Param("statuses") java.util.List<ApplicationStatus> statuses,
             @Param("cutoff") java.time.LocalDateTime cutoff);
+
+    void deleteByUserId(Long userId);
 }

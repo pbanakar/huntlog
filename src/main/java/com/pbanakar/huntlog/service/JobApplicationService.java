@@ -80,6 +80,12 @@ public class JobApplicationService {
             app.setStatus(request.getStatus());
         }
 
+        if (request.getCompany() != null && !request.getCompany().isBlank()) {
+            app.setCompany(request.getCompany().trim());
+        }
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            app.setRole(request.getRole().trim());
+        }
         if (request.getNotes() != null) {
             app.setNotes(request.getNotes());
         }

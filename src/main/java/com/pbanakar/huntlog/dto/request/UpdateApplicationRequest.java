@@ -10,6 +10,14 @@ public class UpdateApplicationRequest {
     @Schema(description = "Target application status. Transition is validated by the state machine.", example = "SCREENING")
     private ApplicationStatus status;
 
+    @Size(max = 100, message = "Company must be at most 100 characters")
+    @Schema(example = "Google", description = "Updated company name")
+    private String company;
+
+    @Size(max = 100, message = "Role must be at most 100 characters")
+    @Schema(example = "Software Engineer I", description = "Updated job role or title")
+    private String role;
+
     @Size(max = 2000, message = "Notes must be at most 2000 characters")
     @Schema(example = "Completed technical phone screen", description = "Updated notes")
     private String notes;
@@ -28,6 +36,22 @@ public class UpdateApplicationRequest {
 
     public void setStatus(ApplicationStatus status) {
         this.status = status;
+    }
+
+    public String getCompany() {
+        return company;
+    }
+
+    public void setCompany(String company) {
+        this.company = company;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public String getNotes() {

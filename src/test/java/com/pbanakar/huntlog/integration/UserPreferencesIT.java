@@ -22,6 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.UUID;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -116,6 +117,27 @@ class UserPreferencesIT {
         mockMvc.perform(put("/api/v1/users/me/preferences")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"emailRemindersEnabled\":false}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/users/me returns 204, subsequent GET /api/v1/applications returns 401")
+    void testDeleteAccountAndSubsequentAccess() throws Exception {
+        String token = registerAndGetToken("user_delete_" + UUID.randomUUID() + "@example.com");
+
+        // 1. User can access applications initially
+        mockMvc.perform(get("/api/v1/applications")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        // 2. DELETE account -> returns 204 No Content
+        mockMvc.perform(delete("/api/v1/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        // 3. Subsequent GET /applications with same token -> returns 401 Unauthorized (user deleted)
+        mockMvc.perform(get("/api/v1/applications")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 }

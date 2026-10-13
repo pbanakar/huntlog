@@ -1,5 +1,6 @@
 package com.pbanakar.huntlog.security;
 
+import com.pbanakar.huntlog.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,9 +26,11 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
         this.jwtService = jwtService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -44,13 +47,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String email = jwtService.extractEmail(token);
                 Long userId = jwtService.extractUserId(token);
 
-                // Store userId as the principal so the service layer can retrieve it.
-                // We use a simple map as details to carry the userId alongside the email.
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
-                authentication.setDetails(userId);
+                if (userId != null && userRepository.existsById(userId)) {
+                    // Store userId as the principal so the service layer can retrieve it.
+                    // We use a simple map as details to carry the userId alongside the email.
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                    authentication.setDetails(userId);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         }
 

@@ -5,14 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HuntLog — Job Application Tracker</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js CDN for Analytics Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
     <!-- Network / Global Error Banner -->
     <div id="network-banner" class="network-banner hidden">
         <span>Could not reach server. Is the API running?</span>
-        <button type="button" id="btn-close-banner">&times;</button>
+        <button type="button" id="btn-close-banner" aria-label="Dismiss banner">&times;</button>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Mobile Drawer Overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden" onclick="closeSidebarMobile()"></div>
 
     <!-- 1. AUTHENTICATION VIEW -->
     <main id="auth-view" class="auth-wrapper hidden">
@@ -63,13 +71,14 @@
         </div>
     </main>
 
-    <!-- 2. DASHBOARD VIEW -->
+    <!-- 2. MAIN APPLICATION CONTAINER -->
     <div id="dashboard-view" class="app-container hidden">
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="app-sidebar">
             <div class="sidebar-brand">
                 <div class="brand-title">HuntLog</div>
                 <div class="brand-subtitle">Application Tracker</div>
+                <button type="button" class="btn-sidebar-close" onclick="closeSidebarMobile()" aria-label="Close sidebar">&times;</button>
             </div>
 
             <div class="user-profile">
@@ -81,11 +90,21 @@
             </div>
 
             <nav class="nav-menu">
-                <a href="#dashboard" class="nav-item active" id="nav-dashboard">
-                    <span class="nav-label">Dashboard</span>
+                <a href="#dashboard" class="nav-item active" id="nav-applications" onclick="handleNavClick('dashboard')">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Applications</span>
+                </a>
+                <a href="#analytics" class="nav-item" id="nav-analytics" onclick="handleNavClick('analytics')">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Analytics</span>
+                </a>
+                <a href="#settings" class="nav-item" id="nav-settings" onclick="handleNavClick('settings')">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Settings</span>
                 </a>
                 <button type="button" class="nav-item nav-action-btn" id="btn-sidebar-add" onclick="openAddModal()">
-                    <span class="nav-label">+ Add Application</span>
+                    <span class="nav-icon">+</span>
+                    <span class="nav-label">Add Application</span>
                 </button>
             </nav>
 
@@ -113,92 +132,249 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <!-- Top Header Bar -->
+            <!-- Top Header Bar with Mobile Hamburger -->
             <header class="top-bar">
-                <div>
-                    <h1 class="page-title">Applications Dashboard</h1>
-                    <p class="page-subtitle">Track, update, and manage your active hiring pipeline.</p>
+                <div class="top-bar-left">
+                    <button type="button" class="btn-hamburger" id="btn-hamburger" onclick="toggleSidebarMobile()" aria-label="Toggle navigation">
+                        <span class="hamburger-bar"></span>
+                        <span class="hamburger-bar"></span>
+                        <span class="hamburger-bar"></span>
+                    </button>
+                    <div>
+                        <h1 class="page-title" id="page-title">Applications Dashboard</h1>
+                        <p class="page-subtitle" id="page-subtitle">Track, update, and manage your active hiring pipeline.</p>
+                    </div>
                 </div>
-                <div class="top-bar-actions">
-                    <button type="button" class="btn btn-secondary" onclick="loadDashboardData()">Refresh</button>
-                    <button type="button" class="btn btn-primary" onclick="openAddModal()">+ New Application</button>
+                <div class="top-bar-actions" id="top-bar-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-refresh" onclick="refreshCurrentView()">Refresh</button>
+                    <button type="button" class="btn btn-primary" id="btn-top-add" onclick="openAddModal()">+ New Application</button>
                 </div>
             </header>
 
-            <!-- Section 1: Stats Cards -->
-            <section class="stats-grid" id="stats-section">
-                <div class="stat-card">
-                    <span class="stat-title">Total Applications</span>
-                    <div class="stat-value" id="card-total-apps">0</div>
-                    <span class="stat-hint">All recorded submissions</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Applied This Week</span>
-                    <div class="stat-value" id="card-this-week">0</div>
-                    <span class="stat-hint">Since Monday</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Response Rate</span>
-                    <div class="stat-value" id="card-response-rate">0.0%</div>
-                    <span class="stat-hint">Moved past initial application</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-title">Oldest Pending</span>
-                    <div class="stat-value" id="card-oldest-pending">—</div>
-                    <span class="stat-hint" id="card-oldest-hint">In screening or interview</span>
-                </div>
-            </section>
-
-            <!-- Section 2: Applications Table & Filter Bar -->
-            <section class="table-card">
-                <div class="filter-bar">
-                    <div class="filter-search-wrap">
-                        <input type="text" id="search-input" placeholder="Search by company name..." oninput="handleClientSearch()">
+            <!-- VIEW 1: APPLICATIONS VIEW -->
+            <div id="view-applications" class="page-view">
+                <!-- Section 1: Stats Cards (Applications Overview) -->
+                <section class="stats-grid" id="stats-section">
+                    <div class="stat-card">
+                        <span class="stat-title">Total Applications</span>
+                        <div class="stat-value" id="card-total-apps">0</div>
+                        <span class="stat-hint">All recorded submissions</span>
                     </div>
-                    <div class="filter-select-wrap">
-                        <label for="status-filter">Status:</label>
-                        <select id="status-filter" onchange="handleStatusFilterChange()">
-                            <option value="ALL">All Statuses</option>
-                            <option value="APPLIED">APPLIED</option>
-                            <option value="SCREENING">SCREENING</option>
-                            <option value="INTERVIEW">INTERVIEW</option>
-                            <option value="OFFER">OFFER</option>
-                            <option value="ACCEPTED">ACCEPTED</option>
-                            <option value="REJECTED">REJECTED</option>
-                            <option value="WITHDRAWN">WITHDRAWN</option>
-                        </select>
+                    <div class="stat-card">
+                        <span class="stat-title">Applied This Week</span>
+                        <div class="stat-value" id="card-this-week">0</div>
+                        <span class="stat-hint">Since Monday</span>
                     </div>
-                    <div class="table-counter">
-                        <span id="filtered-count-badge">0 applications</span>
+                    <div class="stat-card">
+                        <span class="stat-title">Response Rate</span>
+                        <div class="stat-value" id="card-response-rate">0.0%</div>
+                        <span class="stat-hint">Moved past initial application</span>
                     </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Oldest Pending</span>
+                        <div class="stat-value" id="card-oldest-pending">—</div>
+                        <span class="stat-hint" id="card-oldest-hint">In screening or interview</span>
+                    </div>
+                </section>
+
+                <!-- Section 2: Applications Table & Filter Bar -->
+                <section class="table-card">
+                    <div class="filter-bar">
+                        <div class="filter-search-wrap">
+                            <input type="text" id="search-input" placeholder="Search company, role, location..." oninput="handleClientSearch()">
+                        </div>
+                        <div class="filter-select-wrap">
+                            <label for="status-filter">Status:</label>
+                            <select id="status-filter" onchange="handleStatusFilterChange()">
+                                <option value="ALL">All Statuses</option>
+                                <option value="APPLIED">APPLIED</option>
+                                <option value="SCREENING">SCREENING</option>
+                                <option value="INTERVIEW">INTERVIEW</option>
+                                <option value="OFFER">OFFER</option>
+                                <option value="ACCEPTED">ACCEPTED</option>
+                                <option value="REJECTED">REJECTED</option>
+                                <option value="WITHDRAWN">WITHDRAWN</option>
+                            </select>
+                        </div>
+                        <div class="filter-date-wrap">
+                            <label for="filter-date-from">From:</label>
+                            <input type="date" id="filter-date-from" title="Applied from date">
+                            <label for="filter-date-to">To:</label>
+                            <input type="date" id="filter-date-to" title="Applied to date">
+                            <button type="button" class="btn btn-sm btn-secondary" id="btn-apply-date-filter" onclick="applyClientFilters()">Apply</button>
+                            <button type="button" class="btn btn-sm btn-outline" id="btn-clear-date-filter" onclick="clearDateFilter()">Clear</button>
+                        </div>
+                        <div class="table-counter">
+                            <span id="filtered-count-badge">0 applications</span>
+                        </div>
+                    </div>
+
+                    <!-- Table Loading State with Spinner -->
+                    <div id="table-loading" class="loading-state hidden">
+                        <div class="spinner"></div>
+                        <span>Loading applications...</span>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="data-table" id="applications-table">
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Applied Date</th>
+                                    <th>Location</th>
+                                    <th>Notes</th>
+                                    <th>Job URL</th>
+                                    <th>Last Updated</th>
+                                    <th class="actions-col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="applications-tbody">
+                                <!-- Populated dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="empty-state" class="empty-state hidden">
+                        <p class="empty-title">No applications found.</p>
+                        <p class="empty-desc">Add your first application to get started.</p>
+                        <button type="button" class="btn btn-primary" onclick="openAddModal()">Add Application</button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- VIEW 2: ANALYTICS VIEW -->
+            <div id="view-analytics" class="page-view hidden">
+                <!-- Analytics Stat Cards Row -->
+                <section class="stats-grid" id="analytics-stats-section">
+                    <div class="stat-card">
+                        <span class="stat-title">Total Applications</span>
+                        <div class="stat-value" id="analytics-total-apps">0</div>
+                        <span class="stat-hint">All pipeline stages</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Applied This Week</span>
+                        <div class="stat-value" id="analytics-this-week">0</div>
+                        <span class="stat-hint">Recent velocity</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Response Rate</span>
+                        <div class="stat-value" id="analytics-response-rate">0.0%</div>
+                        <span class="stat-hint">Positive recruiter movement</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">Oldest Pending</span>
+                        <div class="stat-value" id="analytics-oldest-pending">—</div>
+                        <span class="stat-hint">Stale applications alert</span>
+                    </div>
+                </section>
+
+                <div id="analytics-loading" class="loading-state hidden">
+                    <div class="spinner"></div>
+                    <span>Loading analytics data...</span>
                 </div>
 
-                <!-- Table & Loading State -->
-                <div id="table-loading" class="loading-state hidden">Loading applications...</div>
-                
-                <div class="table-wrapper">
-                    <table class="data-table" id="applications-table">
-                        <thead>
-                            <tr>
-                                <th>Company</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Applied Date</th>
-                                <th>Location</th>
-                                <th class="actions-col">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="applications-tbody">
-                            <!-- Populated dynamically via JS -->
-                        </tbody>
-                    </table>
-                </div>
+                <!-- Middle Section: Chart.js Bar Chart -->
+                <section class="analytics-chart-card">
+                    <div class="card-header">
+                        <h2>Applications by Status</h2>
+                        <span class="card-subtitle">Distribution of candidates across pipeline phases</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </section>
 
-                <div id="empty-state" class="empty-state hidden">
-                    <h3>No applications found</h3>
-                    <p>Try clearing filters or click "+ New Application" to record your first job application.</p>
+                <!-- Bottom Section: Top Companies Table -->
+                <section class="analytics-companies-card">
+                    <div class="card-header">
+                        <h2>Top Companies</h2>
+                        <span class="card-subtitle">Organizations with the most submitted applications</span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table" id="top-companies-table">
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Applications</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-companies-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="analytics-empty-companies" class="empty-state hidden">
+                        <p class="empty-title">No applications recorded yet.</p>
+                        <p class="empty-desc">Submit your first application to view company distribution metrics.</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- VIEW 3: SETTINGS VIEW -->
+            <div id="view-settings" class="page-view hidden">
+                <div class="settings-container">
+                    <!-- Section 1: Email Preferences -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h2>Email Preferences</h2>
+                            <p class="settings-card-subtitle">Automated email notifications to keep applications on schedule.</p>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-row-text">
+                                <strong>Follow-up Reminders</strong>
+                                <p>Send me email reminders when applications haven't been updated in 7+ days.</p>
+                            </div>
+                            <div class="settings-row-action">
+                                <label class="switch" for="toggle-email-reminders">
+                                    <input type="checkbox" id="toggle-email-reminders" onchange="handleToggleEmailReminders(event)">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Account Info -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h2>Account Information</h2>
+                            <p class="settings-card-subtitle">Your credentials and registration details.</p>
+                        </div>
+                        <div class="account-info-grid">
+                            <div class="account-info-item">
+                                <span class="info-label">Full Name</span>
+                                <span class="info-value" id="settings-user-name">—</span>
+                            </div>
+                            <div class="account-info-item">
+                                <span class="info-label">Email Address</span>
+                                <span class="info-value" id="settings-user-email">—</span>
+                            </div>
+                            <div class="account-info-item">
+                                <span class="info-label">Member Since</span>
+                                <span class="info-value" id="settings-user-since">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Danger Zone -->
+                    <div class="settings-card danger-card">
+                        <div class="settings-card-header">
+                            <h2 class="danger-title">Danger Zone</h2>
+                            <p class="settings-card-subtitle">Permanently delete your profile and all associated application data.</p>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-row-text">
+                                <strong>Delete Account</strong>
+                                <p>This will permanently erase your user profile and all job application history. This action cannot be reversed.</p>
+                            </div>
+                            <div class="settings-row-action">
+                                <button type="button" class="btn btn-danger-outline" id="btn-delete-account" onclick="handleDeleteAccount()">Delete Account</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </section>
+            </div>
         </main>
     </div>
 
@@ -239,8 +415,11 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="add-notes">Notes</label>
-                        <textarea id="add-notes" rows="3" placeholder="Referral details, compensation range, interview prep notes..." maxlength="2000"></textarea>
+                        <div class="label-with-counter">
+                            <label for="add-notes">Notes (Optional)</label>
+                            <span class="char-counter" id="add-notes-counter">0 / 2000</span>
+                        </div>
+                        <textarea id="add-notes" rows="3" placeholder="Referral details, compensation range, interview prep notes..." maxlength="2000" oninput="updateCharCounter('add-notes', 'add-notes-counter')"></textarea>
                     </div>
 
                     <div id="add-app-error" class="form-error hidden"></div>
@@ -253,7 +432,56 @@
         </div>
     </div>
 
-    <!-- 4. UPDATE STATUS MODAL -->
+    <!-- 4. EDIT APPLICATION MODAL (NEW) -->
+    <div id="edit-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event, 'edit-modal')">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h2>Edit Application</h2>
+                <button type="button" class="btn-close" onclick="closeModal('edit-modal')">&times;</button>
+            </div>
+            <form id="edit-app-form" onsubmit="handleEditApplication(event)">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-company">Company <span class="required">*</span></label>
+                            <input type="text" id="edit-company" required placeholder="e.g. Google" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-role">Role / Title <span class="required">*</span></label>
+                            <input type="text" id="edit-role" required placeholder="e.g. Senior Software Engineer" maxlength="100">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit-location">Location</label>
+                            <input type="text" id="edit-location" placeholder="e.g. Remote, San Francisco, CA" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-job-url">Job Posting URL</label>
+                            <input type="url" id="edit-job-url" placeholder="https://careers.company.com/..." maxlength="500">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="label-with-counter">
+                            <label for="edit-notes">Notes</label>
+                            <span class="char-counter" id="edit-notes-counter">0 / 2000</span>
+                        </div>
+                        <textarea id="edit-notes" rows="4" placeholder="Referral details, recruiter name, compensation notes..." maxlength="2000" oninput="updateCharCounter('edit-notes', 'edit-notes-counter')"></textarea>
+                    </div>
+
+                    <div id="edit-app-error" class="form-error hidden"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-modal')">Cancel</button>
+                    <button type="submit" id="edit-submit-btn" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. UPDATE STATUS MODAL -->
     <div id="update-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event, 'update-modal')">
         <div class="modal-dialog modal-dialog-sm">
             <div class="modal-header">
@@ -268,7 +496,15 @@
                     
                     <div class="form-group">
                         <label>Current Status:</label>
-                        <div id="update-current-badge-wrap"></div>
+                        <div class="update-status-row">
+                            <div id="update-current-badge-wrap"></div>
+                            <span id="update-days-ago-info" class="update-days-info">Last updated recently</span>
+                        </div>
+                    </div>
+
+                    <!-- Orange warning if > 14 days without update -->
+                    <div id="update-stale-warning" class="warning-callout hidden">
+                        ⚠ This application hasn't been updated in 15 days
                     </div>
 
                     <div class="form-group" id="update-select-group">
@@ -279,8 +515,11 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="update-notes">Updated Notes (Optional):</label>
-                        <textarea id="update-notes" rows="2" placeholder="Interview details, recruiter feedback..." maxlength="2000"></textarea>
+                        <div class="label-with-counter">
+                            <label for="update-notes">Updated Notes (Optional):</label>
+                            <span class="char-counter" id="update-notes-counter">0 / 2000</span>
+                        </div>
+                        <textarea id="update-notes" rows="2" placeholder="Interview details, recruiter feedback..." maxlength="2000" oninput="updateCharCounter('update-notes', 'update-notes-counter')"></textarea>
                     </div>
 
                     <div id="update-no-transitions" class="info-callout hidden">
@@ -297,6 +536,7 @@
         </div>
     </div>
 
+    <!-- Application Script -->
     <script src="app.js"></script>
 </body>
 </html>

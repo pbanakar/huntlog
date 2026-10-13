@@ -62,7 +62,7 @@ To stop containers:
 docker compose down
 ```
 
-### Method B: Local Development Mode
+### Method B: Local Development Mode (Docker Postgres)
 
 Runs the Spring Boot application locally while connecting to PostgreSQL in Docker.
 
@@ -73,6 +73,24 @@ docker compose up postgres -d
 # 2. Run the Spring Boot application
 mvn spring-boot:run
 ```
+
+### Method C: Native Java Mode (Zero Docker / WSL Required)
+
+If Docker or WSL is not installed or temporarily unavailable, you can run HuntLog natively on Windows or Linux by pointing directly to your cloud Neon PostgreSQL database over SSL:
+
+```powershell
+# Set database environment variables in your current PowerShell session
+$env:SPRING_DATASOURCE_URL="jdbc:postgresql://ep-fancy-cake-b3nmhm4h-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+$env:DB_USERNAME="neondb_owner"
+$env:DB_PASSWORD="npg_vz69XlYewrsB"
+$env:JWT_SECRET="404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+
+# Start the Spring Boot application
+mvn spring-boot:run
+```
+
+The application starts immediately on `http://localhost:8080`, applying Flyway migrations and serving the full SPA and API using cloud Neon storage.
+
 
 ---
 
@@ -295,6 +313,20 @@ curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
 ```
 
 Response: `204 No Content`
+
+### Step 10: Delete User Account (Danger Zone)
+
+Permanently removes the authenticated user and all their associated applications:
+
+```powershell
+curl.exe -s -X DELETE http://localhost:8080/api/v1/users/me `
+  -H "Authorization: Bearer $token"
+```
+
+Response: `204 No Content`
+
+Subsequent requests using the old token will return `401 Unauthorized`.
+
 
 ---
 

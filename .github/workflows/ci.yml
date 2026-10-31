@@ -45,3 +45,5 @@ jobs:
           # Integration tests use the PostgreSQL service directly. Disable
           # production reminder scheduling during the test suite.
           REMINDERS_ENABLED: "false"
+          # The integration suite intentionally creates many accounts from one runner IP.
+          AUTH_RATE_LIMIT_MAX_ATTEMPTS: "1000"

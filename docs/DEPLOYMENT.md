@@ -14,8 +14,6 @@ HuntLog uses an architecture that separates the web server from the database to 
 - **Email Delivery**: SMTP via Mailtrap (development/testing) or Gmail App Password (production).
 - **Cost**: $0.00 / month indefinitely.
 
-Note: Earlier deployment on Railway was retired to avoid the 30-day trial limitation and credit expiration.
-
 ---
 
 ## 2. Prerequisites
@@ -69,8 +67,8 @@ Before beginning deployment, ensure you have:
 | `MAIL_PORT` | `587` | SMTP port with STARTTLS |
 | `MAIL_USERNAME` | `<smtp-username>` | Mailtrap username or Gmail address |
 | `MAIL_PASSWORD` | `<smtp-password>` | Mailtrap password or Google App Password |
-| `MAIL_FROM` | `no-reply@huntlog.dev` | Sender address |
-| `REMINDERS_ENABLED` | `true` | Enables background daily reminder scanner |
+| `MAIL_FROM` | `<sender-address>` | Sender address |
+| `REMINDERS_ENABLED` | `true` | Enables the background reminder scanner |
 | `REMINDER_STALE_DAYS` | `7` | Days threshold to flag pending applications |
 | `REMINDER_SCAN_INTERVAL_MS` | `3600000` | Reminder scan interval in milliseconds |
 | `REMINDER_INITIAL_DELAY_MS` | `60000` | Initial reminder scan delay in milliseconds |
@@ -122,4 +120,4 @@ UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping th
    - Click Authorize, paste your JWT token, and test protected endpoints directly.
 
 4. **Database Persistence**:
-   Flyway migrations (`V1`, `V2`, `V3`) run automatically on startup against Neon PostgreSQL. Tables and records persist permanently across any container redeployments.
+   Flyway migrations run automatically on startup against Neon PostgreSQL. Existing migration files must not be edited after deployment; add schema changes as new migrations such as `V4__...`.

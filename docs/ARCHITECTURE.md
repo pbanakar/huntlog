@@ -38,7 +38,7 @@ flowchart TD
     subgraph PersistenceLayer ["Persistence Layer"]
         UserRepo[("UserRepository\n(users table)")]
         AppRepo[("JobApplicationRepository\n(job_applications table)")]
-        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1, V2, V3)")]
+        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1-V4)")]
     end
 
     subgraph ExternalMail ["Mail Delivery"]
@@ -133,9 +133,9 @@ The reminder subsystem identifies neglected job applications and sends consolida
 
 ```mermaid
 flowchart TD
-    CronTrigger(["Cron Trigger\n(app.reminders.cron)"]) --> CheckEnabled{"Reminders Enabled?"}
+    Scheduler(["Startup + hourly scheduler"]) --> CheckEnabled{"Reminders Enabled?"}
     CheckEnabled -- No --> LogSkip["Log: Reminders disabled, skipping"]
-    CheckEnabled -- Yes --> QueryDB["Query Stale Applications\n(Status IN APPLIED, SCREENING, INTERVIEW\nAND lastUpdated < now - staleDays\nAND emailRemindersEnabled = true)"]
+    CheckEnabled -- Yes --> QueryDB["Query stale applications\n(Status IN APPLIED, SCREENING, INTERVIEW\nAND lastUpdated is null or older than staleDays\nAND reminder not sent in the last day\nAND emailRemindersEnabled = true)"]
     
     QueryDB --> GroupByUser["Group Applications by User"]
     GroupByUser --> IterateUsers["For each User with Stale Applications"]
@@ -143,7 +143,8 @@ flowchart TD
     IterateUsers --> BuildEmail["Format Consolidated Plain-Text Digest"]
     BuildEmail --> SendMail["Send via JavaMailSender (SMTP)"]
     SendMail --> ErrorCatch{"Send Successful?"}
-    ErrorCatch -- Yes --> LogSuccess["Log Success"]
+    ErrorCatch -- Yes --> Track["Store lastReminderSentAt"]
+    Track --> LogSuccess["Log Success"]
     ErrorCatch -- No (Exception) --> LogError["Log Error (Continue loop without throwing)"]
 ```
 
@@ -243,9 +244,10 @@ erDiagram
 ```
 
 ### Migrations Timeline
-- `V1__create_job_applications.sql`: Creates initial `job_applications` table with `BIGSERIAL` primary key and timestamps.
+- `V1__create_job_applications.sql`: Creates initial `job_applications` table with `BIGSERIAL` primary key and timestamps. Do not edit after deployment.
 - `V2__create_users_and_link_applications.sql`: Creates `users` table, adds `user_id` foreign key constraint, and indexes `idx_job_applications_user_id`.
 - `V3__add_email_preferences.sql`: Adds `email_reminders_enabled` boolean column to `users` table for user notification controls.
+- `V4__add_reminder_tracking.sql`: Adds `last_reminder_sent_at` to prevent duplicate reminder emails.
 
 ---
 

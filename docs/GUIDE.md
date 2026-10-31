@@ -22,8 +22,9 @@ For cloud deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
 - All job application data is strictly scoped to the authenticated user ID. Users can only access and modify their own applications.
 
 ### Automated Follow-Up Reminders
-- HuntLog runs a background scheduled job that identifies pending applications (in APPLIED, SCREENING, or INTERVIEW) that have not been updated in 7 or more days.
-- A single consolidated email is sent to each user summarizing all their stale applications.
+- HuntLog scans pending applications (APPLIED, SCREENING, or INTERVIEW) that have not been updated in 7 or more days.
+- The scan runs after startup and hourly by default, then sends one consolidated email per user.
+- Successful reminders are tracked so the same application is not emailed again every hour.
 
 ---
 
@@ -136,6 +137,17 @@ Disable the scheduler globally by setting the environment variable:
 ```env
 REMINDERS_ENABLED=false
 ```
+
+### Test Reminders Immediately
+
+After logging in, call the authenticated endpoint below to send reminders without waiting for the scheduled scan:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/users/me/reminders/send \
+  -H "Authorization: Bearer <your-jwt>"
+```
+
+The response contains the number of applications notified. Check application logs for SMTP failures.
 
 ---
 

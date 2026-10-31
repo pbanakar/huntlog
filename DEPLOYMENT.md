@@ -64,7 +64,7 @@ Before beginning deployment, ensure you have:
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<neon-host>/neondb?sslmode=require` | Neon JDBC connection string |
 | `DB_USERNAME` | `<neon-username>` | Database username |
 | `DB_PASSWORD` | `<neon-password>` | Database password |
-| `JWT_SECRET` | `404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970` | 256-bit secret key for signing tokens |
+| `JWT_SECRET` | `<random-secret-at-least-32-bytes>` | Random secret key for signing tokens; never commit it |
 | `MAIL_HOST` | `sandbox.smtp.mailtrap.io` | SMTP host (`smtp.gmail.com` for Gmail) |
 | `MAIL_PORT` | `587` | SMTP port with STARTTLS |
 | `MAIL_USERNAME` | `<smtp-username>` | Mailtrap username or Gmail address |
@@ -72,7 +72,10 @@ Before beginning deployment, ensure you have:
 | `MAIL_FROM` | `no-reply@huntlog.dev` | Sender address |
 | `REMINDERS_ENABLED` | `true` | Enables background daily reminder scanner |
 | `REMINDER_STALE_DAYS` | `7` | Days threshold to flag pending applications |
-| `REMINDER_CRON` | `0 0 9 * * *` | Daily scan cron schedule |
+| `REMINDER_SCAN_INTERVAL_MS` | `3600000` | Reminder scan interval in milliseconds |
+| `REMINDER_INITIAL_DELAY_MS` | `60000` | Initial reminder scan delay in milliseconds |
+| `AUTH_RATE_LIMIT_MAX_ATTEMPTS` | `10` | Login/register attempts per IP per window |
+| `AUTH_RATE_LIMIT_WINDOW_SECONDS` | `60` | Authentication rate-limit window |
 
 6. Click **Create Web Service**.
 7. Render will build the multi-stage Docker container using the Google Cloud Maven Central mirror and start the service.
@@ -120,4 +123,3 @@ UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping th
 
 4. **Database Persistence**:
    Flyway migrations (`V1`, `V2`, `V3`) run automatically on startup against Neon PostgreSQL. Tables and records persist permanently across any container redeployments.
-

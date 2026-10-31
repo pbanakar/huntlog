@@ -8,9 +8,9 @@ Live Demo: https://huntlog-coga.onrender.com (Deployed on Render + Neon PostgreS
 
 ## Documentation
 
-- [Production Deployment Guide](file:///c:/projects/Huntlog/DEPLOYMENT.md): Step-by-step guide to deploying on Render with Neon PostgreSQL, HTTPS, and Gmail/Mailtrap SMTP.
-- [User and Beginner Guide](file:///c:/projects/Huntlog/GUIDE.md): Local development, dashboard walkthrough, email reminder setup, and API examples.
-- [Architecture and Technical Design](file:///c:/projects/Huntlog/ARCHITECTURE.md): System architecture, finite state machine, security isolation, and database schemas.
+- [Production Deployment Guide](DEPLOYMENT.md): Step-by-step guide to deploying on Render with Neon PostgreSQL, HTTPS, and Gmail/Mailtrap SMTP.
+- [User and Beginner Guide](GUIDE.md): Local development, dashboard walkthrough, email reminder setup, and API examples.
+- [Architecture and Technical Design](ARCHITECTURE.md): System architecture, finite state machine, security isolation, and database schemas.
 
 ---
 
@@ -90,10 +90,10 @@ docker compose up --build -d
 
 #### Without Docker (Direct Java + Cloud Neon PostgreSQL):
 ```powershell
-$env:SPRING_DATASOURCE_URL="jdbc:postgresql://ep-fancy-cake-b3nmhm4h-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
-$env:DB_USERNAME="neondb_owner"
-$env:DB_PASSWORD="npg_vz69XlYewrsB"
-$env:JWT_SECRET="404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+$env:SPRING_DATASOURCE_URL="<jdbc-postgresql-url>"
+$env:DB_USERNAME="<database-user>"
+$env:DB_PASSWORD="<database-password>"
+$env:JWT_SECRET="<random-secret-at-least-32-bytes>"
 mvn spring-boot:run
 ```
 
@@ -130,14 +130,18 @@ HuntLog is pre-configured for zero-cost production deployment on Render and Neon
 - `DB_USERNAME`: Neon database user
 - `DB_PASSWORD`: Neon database password
 - `JWT_SECRET`: 256-bit secret key for authentication tokens
+- `AUTH_RATE_LIMIT_MAX_ATTEMPTS`: Maximum login/register attempts per IP in the configured window
+- `AUTH_RATE_LIMIT_WINDOW_SECONDS`: Login/register rate-limit window
 - `MAIL_HOST`: `sandbox.smtp.mailtrap.io` or `smtp.gmail.com`
 - `MAIL_PORT`: `587`
 - `MAIL_USERNAME`: Mail account username
 - `MAIL_PASSWORD`: Mail account password
+- `MAIL_FROM`: Sender address used for reminder emails
 - `MAIL_FROM`: Sender email address
 - `REMINDERS_ENABLED`: `true`
 - `REMINDER_STALE_DAYS`: `7`
-- `REMINDER_CRON`: `0 0 9 * * *`
+- `REMINDER_SCAN_INTERVAL_MS`: `3600000` (one hour)
+- `REMINDER_INITIAL_DELAY_MS`: `60000` (one minute after startup)
 - `PORT`: `8080`
 
-For full deployment instructions, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md).
+For full deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).

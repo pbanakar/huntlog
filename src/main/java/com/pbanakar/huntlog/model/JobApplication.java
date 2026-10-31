@@ -43,6 +43,9 @@ public class JobApplication {
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
 
+    @Column(name = "last_reminder_sent_at")
+    private LocalDateTime lastReminderSentAt;
+
     @Size(max = 500)
     @Column(name = "job_url", length = 500)
     private String jobUrl;
@@ -110,6 +113,14 @@ public class JobApplication {
 
     public void setLastUpdated(LocalDateTime lastUpdated) {
         this.lastUpdated = lastUpdated;
+    }
+
+    public LocalDateTime getLastReminderSentAt() {
+        return lastReminderSentAt;
+    }
+
+    public void setLastReminderSentAt(LocalDateTime lastReminderSentAt) {
+        this.lastReminderSentAt = lastReminderSentAt;
     }
 
     public String getJobUrl() {

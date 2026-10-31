@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,20 +44,36 @@ public class ReminderService {
         this.remindersEnabled = remindersEnabled;
     }
 
-    @Scheduled(cron = "${app.reminders.cron:0 0 9 * * *}")
-    @Transactional(readOnly = true)
+    @Scheduled(fixedDelayString = "${app.reminders.scan-interval-ms:3600000}",
+            initialDelayString = "${app.reminders.initial-delay-ms:60000}")
+    @Transactional
     public void sendPendingApplicationReminders() {
+        sendPendingApplicationReminders(null);
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void sendRemindersOnStartup() {
+        sendPendingApplicationReminders();
+    }
+
+    @Transactional
+    public int sendPendingApplicationReminders(Long userId) {
         if (!remindersEnabled) {
             logger.info("Reminders disabled, skipping");
-            return;
+            return 0;
         }
 
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(staleDays);
-        List<JobApplication> staleApplications = jobApplicationRepository.findStaleApplications(PENDING_STATUSES, cutoff);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime staleCutoff = now.minusDays(staleDays);
+        LocalDateTime reminderCutoff = now.minusDays(1);
+        List<JobApplication> staleApplications = userId == null
+                ? jobApplicationRepository.findStaleApplications(PENDING_STATUSES, staleCutoff, reminderCutoff)
+                : jobApplicationRepository.findStaleApplicationsForUser(
+                        userId, PENDING_STATUSES, staleCutoff, reminderCutoff);
 
         if (staleApplications.isEmpty()) {
             logger.info("No stale pending applications found for reminders");
-            return;
+            return 0;
         }
 
         Map<User, List<JobApplication>> appsByUser = staleApplications.stream()
@@ -68,11 +86,14 @@ public class ReminderService {
 
             try {
                 emailService.sendReminderEmail(user, userApps);
+                userApps.forEach(app -> app.setLastReminderSentAt(now));
+                jobApplicationRepository.saveAll(userApps);
                 logger.info("Sent reminder to {} for {} stale applications", user.getEmail(), userApps.size());
             } catch (Exception e) {
                 logger.error("Failed to send reminder email to {}: {}", user.getEmail(), e.getMessage(), e);
             }
         }
+        return appsByUser.values().stream().mapToInt(List::size).sum();
     }
 
     public int getStaleDays() {

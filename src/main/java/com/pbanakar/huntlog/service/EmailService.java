@@ -24,7 +24,7 @@ public class EmailService {
 
     public EmailService(JavaMailSender mailSender,
                         @Value("${app.reminders.stale-days:7}") int staleDays,
-                        @Value("${spring.mail.username:noreply@huntlog.com}") String fromAddress) {
+                        @Value("${app.mail.from:noreply@huntlog.com}") String fromAddress) {
         this.mailSender = mailSender;
         this.staleDays = staleDays;
         this.fromAddress = fromAddress;

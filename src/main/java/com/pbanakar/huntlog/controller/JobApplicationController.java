@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/applications")
 @Tag(name = "Job Applications",
         description = "Create and manage job applications with state machine-validated status transitions")
@@ -57,11 +60,16 @@ public class JobApplicationController {
     public ResponseEntity<Page<ApplicationResponse>> getAll(
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(required = false) String company,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") @Max(value = 50, message = "Page size must not exceed 50") int size,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page must not be negative") int page,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "Page size must be at least 1")
+            @Max(value = 50, message = "Page size must not exceed 50") int size,
             @RequestParam(defaultValue = "lastUpdated,desc") String sort) {
 
         String[] sortParts = sort.split(",");
+        if (sortParts.length > 2 || !java.util.Set.of(
+                "lastUpdated", "appliedDate", "company", "role", "status").contains(sortParts[0])) {
+            throw new IllegalArgumentException("Invalid sort field");
+        }
         Sort.Direction direction = sortParts.length > 1
                 ? Sort.Direction.fromString(sortParts[1])
                 : Sort.Direction.DESC;

@@ -3,6 +3,8 @@ package com.pbanakar.huntlog.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 
 import java.time.LocalDate;
 
@@ -20,6 +22,7 @@ public class CreateApplicationRequest {
     private String role;
 
     @Size(max = 500, message = "Job URL must be at most 500 characters")
+    @Pattern(regexp = "https?://.+", message = "Job URL must start with http:// or https://")
     @Schema(example = "https://careers.google.com/123", description = "URL of the job posting")
     private String jobUrl;
 
@@ -31,6 +34,7 @@ public class CreateApplicationRequest {
     @Schema(example = "Mountain View, CA", description = "Work location or remote status")
     private String location;
 
+    @PastOrPresent(message = "Applied date cannot be in the future")
     @Schema(description = "Date application was submitted (defaults to today if null)")
     private LocalDate appliedDate;
 

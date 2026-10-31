@@ -3,6 +3,7 @@ package com.pbanakar.huntlog.dto.request;
 import com.pbanakar.huntlog.enums.ApplicationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 
 @Schema(description = "Request body to update an existing job application")
 public class UpdateApplicationRequest {
@@ -23,6 +24,7 @@ public class UpdateApplicationRequest {
     private String notes;
 
     @Size(max = 500, message = "Job URL must be at most 500 characters")
+    @Pattern(regexp = "https?://.+", message = "Job URL must start with http:// or https://")
     @Schema(example = "https://careers.google.com/123", description = "Updated job posting URL")
     private String jobUrl;
 

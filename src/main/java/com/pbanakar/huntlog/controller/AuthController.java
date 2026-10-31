@@ -3,11 +3,14 @@ package com.pbanakar.huntlog.controller;
 import com.pbanakar.huntlog.dto.request.LoginRequest;
 import com.pbanakar.huntlog.dto.request.RegisterRequest;
 import com.pbanakar.huntlog.dto.response.AuthResponse;
+import com.pbanakar.huntlog.exception.RateLimitExceededException;
 import com.pbanakar.huntlog.service.AuthService;
+import com.pbanakar.huntlog.security.AuthRateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthRateLimiter authRateLimiter;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthRateLimiter authRateLimiter) {
         this.authService = authService;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @PostMapping("/register")
@@ -32,7 +37,9 @@ public class AuthController {
     @ApiResponse(responseCode = "201", description = "User registered successfully")
     @ApiResponse(responseCode = "409", description = "Email already registered")
     @ApiResponse(responseCode = "400", description = "Validation errors")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                 HttpServletRequest httpRequest) {
+        enforceRateLimit("register", httpRequest);
         AuthResponse response = authService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -42,8 +49,17 @@ public class AuthController {
             description = "Authenticates user credentials and returns a JWT token valid for 24 hours.")
     @ApiResponse(responseCode = "200", description = "Login successful")
     @ApiResponse(responseCode = "401", description = "Invalid credentials")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+                                              HttpServletRequest httpRequest) {
+        enforceRateLimit("login", httpRequest);
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
+    }
+
+    private void enforceRateLimit(String operation, HttpServletRequest request) {
+        String key = operation + ":" + request.getRemoteAddr();
+        if (!authRateLimiter.isAllowed(key)) {
+            throw new RateLimitExceededException("Too many authentication attempts. Try again later.");
+        }
     }
 }

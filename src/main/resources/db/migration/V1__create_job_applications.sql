@@ -1,7 +1,7 @@
 -- ============================================================================
 -- V1__create_job_applications.sql
 -- ============================================================================
--- Phase 1: Core Job Application Schema (Updated for PostgreSQL & Railway)
+-- Phase 1: Core Job Application Schema
 --
 -- Why Flyway over hibernate.ddl-auto=create?
 --   1. Version-controlled schema: every migration is a numbered file in SCM,

@@ -25,7 +25,6 @@ spring:
           auth: true
           starttls:
             enable: true
-
 management:
   endpoints:
     web:
@@ -39,13 +38,20 @@ management:
       enabled: false
 
 app:
+  mail:
+    from: ${MAIL_FROM:${MAIL_USERNAME:noreply@huntlog.com}}
   jwt:
     secret: ${JWT_SECRET:dev-secret-key-minimum-256-bits-long-change-in-production-environment}
     expiration-ms: 86400000  # 24 hours
+  security:
+    auth-rate-limit:
+      max-attempts: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:10}
+      window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
   reminders:
     stale-days: ${REMINDER_STALE_DAYS:7}
     enabled: ${REMINDERS_ENABLED:true}
-    cron: ${REMINDER_CRON:0 0 9 * * *}
+    scan-interval-ms: ${REMINDER_SCAN_INTERVAL_MS:3600000}
+    initial-delay-ms: ${REMINDER_INITIAL_DELAY_MS:60000}
 
 springdoc:
   api-docs:
@@ -57,4 +63,3 @@ springdoc:
     display-request-duration: true
     try-it-out-enabled: true
   show-actuator: false
-

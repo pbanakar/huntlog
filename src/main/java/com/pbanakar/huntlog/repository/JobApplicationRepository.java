@@ -63,11 +63,26 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     @Query("SELECT j FROM JobApplication j " +
            "JOIN FETCH j.user u " +
            "WHERE j.status IN :statuses " +
-           "AND j.lastUpdated < :cutoff " +
+           "AND (j.lastUpdated IS NULL OR j.lastUpdated < :staleCutoff) " +
+           "AND (j.lastReminderSentAt IS NULL OR j.lastReminderSentAt < :reminderCutoff) " +
            "AND u.emailRemindersEnabled = true")
     java.util.List<JobApplication> findStaleApplications(
             @Param("statuses") java.util.List<ApplicationStatus> statuses,
-            @Param("cutoff") java.time.LocalDateTime cutoff);
+            @Param("staleCutoff") java.time.LocalDateTime staleCutoff,
+            @Param("reminderCutoff") java.time.LocalDateTime reminderCutoff);
+
+    @Query("SELECT j FROM JobApplication j " +
+           "JOIN FETCH j.user u " +
+           "WHERE j.user.id = :userId " +
+           "AND j.status IN :statuses " +
+           "AND (j.lastUpdated IS NULL OR j.lastUpdated < :staleCutoff) " +
+           "AND (j.lastReminderSentAt IS NULL OR j.lastReminderSentAt < :reminderCutoff) " +
+           "AND u.emailRemindersEnabled = true")
+    java.util.List<JobApplication> findStaleApplicationsForUser(
+            @Param("userId") Long userId,
+            @Param("statuses") java.util.List<ApplicationStatus> statuses,
+            @Param("staleCutoff") java.time.LocalDateTime staleCutoff,
+            @Param("reminderCutoff") java.time.LocalDateTime reminderCutoff);
 
     void deleteByUserId(Long userId);
 }

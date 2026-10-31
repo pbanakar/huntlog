@@ -2,6 +2,8 @@ package com.pbanakar.huntlog.controller;
 
 import com.pbanakar.huntlog.dto.request.UpdatePreferencesRequest;
 import com.pbanakar.huntlog.dto.response.UserPreferencesResponse;
+import com.pbanakar.huntlog.dto.response.ReminderResponse;
+import com.pbanakar.huntlog.service.ReminderService;
 import com.pbanakar.huntlog.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,9 +20,11 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final ReminderService reminderService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, ReminderService reminderService) {
         this.userService = userService;
+        this.reminderService = reminderService;
     }
 
     @GetMapping("/me/preferences")
@@ -40,6 +44,15 @@ public class UserController {
     public ResponseEntity<UserPreferencesResponse> updatePreferences(
             @Valid @RequestBody UpdatePreferencesRequest request) {
         return ResponseEntity.ok(userService.updatePreferences(request));
+    }
+
+    @PostMapping("/me/reminders/send")
+    @Operation(summary = "Send pending application reminders now",
+            description = "Immediately sends a reminder for this user's stale applications. Useful for testing SMTP configuration.")
+    @SecurityRequirement(name = "******")
+    public ResponseEntity<ReminderResponse> sendRemindersNow() {
+        return ResponseEntity.ok(new ReminderResponse(
+                reminderService.sendPendingApplicationReminders(com.pbanakar.huntlog.security.SecurityUtils.getCurrentUserId())));
     }
 
     @DeleteMapping("/me")

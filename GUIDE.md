@@ -2,8 +2,8 @@
 
 This guide provides end-to-end instructions for running HuntLog, using the web dashboard, configuring automated email reminders, interacting with the REST API, and managing data.
 
-For technical architecture and database design, see [ARCHITECTURE.md](file:///c:/projects/Huntlog/ARCHITECTURE.md).
-For cloud deployment, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md).
+For technical architecture and database design, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For cloud deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -15,7 +15,7 @@ For cloud deployment, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT
 
 ### Database Port Mapping
 - Docker maps the PostgreSQL database to host port `5432` for local development.
-- In production on Railway, connection parameters are supplied seamlessly via the `DATABASE_URL` environment variable.
+- In production, connection parameters are supplied through the configured database environment variables.
 
 ### Authentication and Data Isolation
 - Authentication uses JSON Web Tokens (JWT).
@@ -80,10 +80,10 @@ If Docker or WSL is not installed or temporarily unavailable, you can run HuntLo
 
 ```powershell
 # Set database environment variables in your current PowerShell session
-$env:SPRING_DATASOURCE_URL="jdbc:postgresql://ep-fancy-cake-b3nmhm4h-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
-$env:DB_USERNAME="neondb_owner"
-$env:DB_PASSWORD="npg_vz69XlYewrsB"
-$env:JWT_SECRET="404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+$env:SPRING_DATASOURCE_URL="<jdbc-postgresql-url>"
+$env:DB_USERNAME="<database-user>"
+$env:DB_PASSWORD="<database-password>"
+$env:JWT_SECRET="<random-secret-at-least-32-bytes>"
 
 # Start the Spring Boot application
 mvn spring-boot:run
@@ -116,7 +116,7 @@ Mailtrap is a safe SMTP sandbox for testing emails without sending messages to r
 
 ### Using Real Gmail SMTP in Production
 
-For production on Railway, see [DEPLOYMENT.md](file:///c:/projects/Huntlog/DEPLOYMENT.md) for generating a 16-character Google App Password.
+For production on Render, see [DEPLOYMENT.md](DEPLOYMENT.md) for generating a 16-character Google App Password.
 
 ### Disabling Email Reminders
 

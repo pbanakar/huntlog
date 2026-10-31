@@ -54,7 +54,7 @@ class ReminderServiceTest {
         ReminderService service = new ReminderService(repository, emailService, 7, true);
         
         // When repository returns empty list (because recent apps filtered out by cutoff)
-        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class))).thenReturn(List.of());
+        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
 
         service.sendPendingApplicationReminders();
 
@@ -66,12 +66,12 @@ class ReminderServiceTest {
     void testTerminalStatusApplicationsExcluded() {
         ReminderService service = new ReminderService(repository, emailService, 7, true);
 
-        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class))).thenReturn(List.of());
+        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
 
         service.sendPendingApplicationReminders();
 
         ArgumentCaptor<List<ApplicationStatus>> statusesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(repository).findStaleApplications(statusesCaptor.capture(), any(LocalDateTime.class));
+        verify(repository).findStaleApplications(statusesCaptor.capture(), any(LocalDateTime.class), any(LocalDateTime.class));
 
         List<ApplicationStatus> queriedStatuses = statusesCaptor.getValue();
         assertThat(queriedStatuses).containsExactlyInAnyOrder(
@@ -95,7 +95,7 @@ class ReminderServiceTest {
         User disabledUser = createUser(1L, "optout@example.com", false);
         JobApplication app = createApp(10L, disabledUser, "Uber", ApplicationStatus.APPLIED);
 
-        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class))).thenReturn(List.of(app));
+        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(app));
 
         service.sendPendingApplicationReminders();
 
@@ -112,7 +112,7 @@ class ReminderServiceTest {
         JobApplication app2 = createApp(11L, user, "Apple", ApplicationStatus.SCREENING);
         JobApplication app3 = createApp(12L, user, "Netflix", ApplicationStatus.INTERVIEW);
 
-        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class))).thenReturn(List.of(app1, app2, app3));
+        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(app1, app2, app3));
 
         service.sendPendingApplicationReminders();
 
@@ -130,7 +130,7 @@ class ReminderServiceTest {
         JobApplication app1 = createApp(10L, user1, "Google", ApplicationStatus.APPLIED);
         JobApplication app2 = createApp(20L, user2, "Microsoft", ApplicationStatus.APPLIED);
 
-        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class))).thenReturn(List.of(app1, app2));
+        when(repository.findStaleApplications(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(app1, app2));
         doThrow(new RuntimeException("SMTP Connection Timeout")).when(emailService).sendReminderEmail(eq(user1), anyList());
 
         // Should complete cleanly without throwing exception

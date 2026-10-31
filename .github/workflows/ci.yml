@@ -42,3 +42,6 @@ jobs:
           DB_URL: jdbc:postgresql://localhost:5432/huntlog
           DB_USER: huntlog
           DB_PASS: huntlog
+          # Integration tests use the PostgreSQL service directly. Disable
+          # production reminder scheduling during the test suite.
+          REMINDERS_ENABLED: "false"

@@ -84,13 +84,19 @@ function isLoggedIn() {
 }
 
 async function login(email, password) {
-    const response = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-    });
+    let response;
+    try {
+        response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+    } catch (netErr) {
+        showNetworkBanner();
+        throw new Error('Could not reach server. Is the API running?');
+    }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
         throw new Error(data.message || 'Login failed. Please check your credentials.');
     }
@@ -100,13 +106,19 @@ async function login(email, password) {
 }
 
 async function register(name, email, password) {
-    const response = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
-    });
+    let response;
+    try {
+        response = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+    } catch (netErr) {
+        showNetworkBanner();
+        throw new Error('Could not reach server. Is the API running?');
+    }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
         throw new Error(data.message || 'Registration failed. Please check your details.');
     }
@@ -1037,11 +1049,13 @@ function switchAuthTab(tab) {
 }
 
 async function handleLogin(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    const btn = document.getElementById('login-submit-btn');
+    if (btn && btn.disabled) return;
+
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('login-error');
-    const btn = document.getElementById('login-submit-btn');
 
     if (errorEl) {
         errorEl.textContent = '';
@@ -1069,12 +1083,14 @@ async function handleLogin(e) {
 }
 
 async function handleRegister(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    const btn = document.getElementById('register-submit-btn');
+    if (btn && btn.disabled) return;
+
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     const errorEl = document.getElementById('register-error');
-    const btn = document.getElementById('register-submit-btn');
 
     if (errorEl) {
         errorEl.textContent = '';
@@ -1256,6 +1272,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCloseBanner) {
         btnCloseBanner.addEventListener('click', hideNetworkBanner);
     }
+
+    // Attach event listeners for auth tabs and forms
+    const tabLogin = document.getElementById('tab-login');
+    if (tabLogin) {
+        tabLogin.addEventListener('click', () => switchAuthTab('login'));
+    }
+    const tabRegister = document.getElementById('tab-register');
+    if (tabRegister) {
+        tabRegister.addEventListener('click', () => switchAuthTab('register'));
+    }
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    const regForm = document.getElementById('register-form');
+    if (regForm) {
+        regForm.addEventListener('submit', handleRegister);
+    }
+
     route();
 });
 

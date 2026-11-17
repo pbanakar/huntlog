@@ -35,7 +35,7 @@ public class UserService {
         Long userId = SecurityUtils.getCurrentUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
-        return new UserPreferencesResponse(Boolean.TRUE.equals(user.getEmailRemindersEnabled()));
+        return toPreferencesResponse(user);
     }
 
     @Transactional
@@ -44,9 +44,40 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
-        user.setEmailRemindersEnabled(request.getEmailRemindersEnabled());
+        if (request.getEmailRemindersEnabled() != null) {
+            user.setEmailRemindersEnabled(request.getEmailRemindersEnabled());
+        }
+        if (request.getEmailSyncEnabled() != null) {
+            user.setEmailSyncEnabled(request.getEmailSyncEnabled());
+        }
+        if (request.getImapHost() != null) {
+            user.setImapHost(request.getImapHost().trim());
+        }
+        if (request.getImapPort() != null) {
+            user.setImapPort(request.getImapPort());
+        }
+        if (request.getImapUsername() != null) {
+            user.setImapUsername(request.getImapUsername().trim());
+        }
+        if (request.getImapPassword() != null && !request.getImapPassword().trim().isEmpty()) {
+            user.setImapPassword(request.getImapPassword().trim());
+        }
+
         userRepository.save(user);
 
-        return new UserPreferencesResponse(user.getEmailRemindersEnabled());
+        return toPreferencesResponse(user);
+    }
+
+    private UserPreferencesResponse toPreferencesResponse(User user) {
+        boolean hasPassword = user.getImapPassword() != null && !user.getImapPassword().trim().isEmpty();
+        return new UserPreferencesResponse(
+                Boolean.TRUE.equals(user.getEmailRemindersEnabled()),
+                Boolean.TRUE.equals(user.getEmailSyncEnabled()),
+                user.getImapHost(),
+                user.getImapPort(),
+                user.getImapUsername(),
+                hasPassword,
+                user.getLastEmailSyncedAt()
+        );
     }
 }

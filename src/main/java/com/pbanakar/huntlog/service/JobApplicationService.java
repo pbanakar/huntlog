@@ -119,6 +119,7 @@ public class JobApplicationService {
         response.setJobUrl(app.getJobUrl());
         response.setNotes(app.getNotes());
         response.setLocation(app.getLocation());
+        response.setSource(app.getSource() != null ? app.getSource() : "MANUAL");
         response.setAllowedNextStatuses(
                 new ArrayList<>(stateMachine.getAllowedTransitions(app.getStatus()))
         );

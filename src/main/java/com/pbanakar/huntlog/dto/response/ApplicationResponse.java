@@ -20,6 +20,9 @@ public class ApplicationResponse {
     private String notes;
     private String location;
 
+    @Schema(description = "Origin of the application (MANUAL, EMAIL_SYNC)", example = "EMAIL_SYNC")
+    private String source;
+
     @Schema(description = "Valid status transitions from current status. Use these values when calling PUT /api/v1/applications/{id}",
             example = "[\"SCREENING\", \"REJECTED\", \"WITHDRAWN\"]")
     private List<ApplicationStatus> allowedNextStatuses;
@@ -97,6 +100,14 @@ public class ApplicationResponse {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public List<ApplicationStatus> getAllowedNextStatuses() {

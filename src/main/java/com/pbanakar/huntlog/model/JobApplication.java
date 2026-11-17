@@ -58,6 +58,10 @@ public class JobApplication {
     @Column(length = 100)
     private String location;
 
+    @Size(max = 50)
+    @Column(name = "source", length = 50)
+    private String source = "MANUAL";
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -145,6 +149,14 @@ public class JobApplication {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public User getUser() {

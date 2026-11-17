@@ -82,6 +82,54 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("getPreferences returns email sync settings")
+    void testGetPreferencesWithSyncSettings() {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setEmailRemindersEnabled(true);
+        user.setEmailSyncEnabled(true);
+        user.setImapHost("imap.gmail.com");
+        user.setImapPort(993);
+        user.setImapUsername("test@gmail.com");
+        user.setImapPassword("secret");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        UserPreferencesResponse response = userService.getPreferences();
+
+        assertThat(response.getEmailRemindersEnabled()).isTrue();
+        assertThat(response.getEmailSyncEnabled()).isTrue();
+        assertThat(response.getImapHost()).isEqualTo("imap.gmail.com");
+        assertThat(response.getImapPort()).isEqualTo(993);
+        assertThat(response.getImapUsername()).isEqualTo("test@gmail.com");
+        assertThat(response.getHasImapPassword()).isTrue();
+    }
+
+    @Test
+    @DisplayName("updatePreferences updates email sync settings")
+    void testUpdatePreferencesWithSyncSettings() {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setEmailRemindersEnabled(true);
+        user.setEmailSyncEnabled(false);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        UpdatePreferencesRequest req = new UpdatePreferencesRequest();
+        req.setEmailSyncEnabled(true);
+        req.setImapHost("imap.gmail.com");
+        req.setImapPort(993);
+        req.setImapUsername("sync@gmail.com");
+        req.setImapPassword("app-password");
+
+        UserPreferencesResponse response = userService.updatePreferences(req);
+
+        assertThat(response.getEmailSyncEnabled()).isTrue();
+        assertThat(response.getImapUsername()).isEqualTo("sync@gmail.com");
+        assertThat(response.getHasImapPassword()).isTrue();
+        assertThat(user.getImapPassword()).isEqualTo("app-password");
+        verify(userRepository).save(user);
+    }
+
+    @Test
     @DisplayName("deleteCurrentUser deletes user applications and user record")
     void testDeleteCurrentUser() {
         User user = new User();

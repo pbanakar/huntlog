@@ -40,6 +40,27 @@ public class User {
     @Column(name = "email_reminders_enabled", nullable = false)
     private Boolean emailRemindersEnabled = true;
 
+    @Column(name = "email_sync_enabled", nullable = false)
+    private Boolean emailSyncEnabled = false;
+
+    @Size(max = 150)
+    @Column(name = "imap_host", length = 150)
+    private String imapHost = "imap.gmail.com";
+
+    @Column(name = "imap_port")
+    private Integer imapPort = 993;
+
+    @Size(max = 150)
+    @Column(name = "imap_username", length = 150)
+    private String imapUsername;
+
+    @Size(max = 255)
+    @Column(name = "imap_password", length = 255)
+    private String imapPassword;
+
+    @Column(name = "last_email_synced_at")
+    private LocalDateTime lastEmailSyncedAt;
+
     public User() {
     }
 
@@ -91,5 +112,53 @@ public class User {
 
     public void setEmailRemindersEnabled(Boolean emailRemindersEnabled) {
         this.emailRemindersEnabled = emailRemindersEnabled;
+    }
+
+    public Boolean getEmailSyncEnabled() {
+        return emailSyncEnabled;
+    }
+
+    public void setEmailSyncEnabled(Boolean emailSyncEnabled) {
+        this.emailSyncEnabled = emailSyncEnabled;
+    }
+
+    public String getImapHost() {
+        return imapHost;
+    }
+
+    public void setImapHost(String imapHost) {
+        this.imapHost = imapHost;
+    }
+
+    public Integer getImapPort() {
+        return imapPort;
+    }
+
+    public void setImapPort(Integer imapPort) {
+        this.imapPort = imapPort;
+    }
+
+    public String getImapUsername() {
+        return imapUsername;
+    }
+
+    public void setImapUsername(String imapUsername) {
+        this.imapUsername = imapUsername;
+    }
+
+    public String getImapPassword() {
+        return imapPassword;
+    }
+
+    public void setImapPassword(String imapPassword) {
+        this.imapPassword = imapPassword;
+    }
+
+    public LocalDateTime getLastEmailSyncedAt() {
+        return lastEmailSyncedAt;
+    }
+
+    public void setLastEmailSyncedAt(LocalDateTime lastEmailSyncedAt) {
+        this.lastEmailSyncedAt = lastEmailSyncedAt;
     }
 }

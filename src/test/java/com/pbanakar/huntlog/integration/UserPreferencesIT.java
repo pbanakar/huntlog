@@ -89,6 +89,38 @@ class UserPreferencesIT {
     }
 
     @Test
+    @DisplayName("PUT and GET /api/v1/users/me/preferences persists email sync settings and masks password")
+    void testEmailSyncPreferencesPersistence() throws Exception {
+        String token = registerAndGetToken("user_sync_" + UUID.randomUUID() + "@example.com");
+
+        UpdatePreferencesRequest updateReq = new UpdatePreferencesRequest();
+        updateReq.setEmailSyncEnabled(true);
+        updateReq.setImapHost("imap.gmail.com");
+        updateReq.setImapPort(993);
+        updateReq.setImapUsername("candidate@gmail.com");
+        updateReq.setImapPassword("super-secret-password");
+
+        mockMvc.perform(put("/api/v1/users/me/preferences")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailSyncEnabled").value(true))
+                .andExpect(jsonPath("$.imapUsername").value("candidate@gmail.com"))
+                .andExpect(jsonPath("$.hasImapPassword").value(true))
+                .andExpect(jsonPath("$.imapPassword").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/users/me/preferences")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailSyncEnabled").value(true))
+                .andExpect(jsonPath("$.imapHost").value("imap.gmail.com"))
+                .andExpect(jsonPath("$.imapUsername").value("candidate@gmail.com"))
+                .andExpect(jsonPath("$.hasImapPassword").value(true))
+                .andExpect(jsonPath("$.imapPassword").doesNotExist());
+    }
+
+    @Test
     @DisplayName("Accessing /api/v1/users/me/preferences without token returns 401 Unauthorized")
     void testUnauthenticatedPreferencesAccessFails() throws Exception {
         mockMvc.perform(get("/api/v1/users/me/preferences"))

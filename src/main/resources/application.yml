@@ -52,6 +52,11 @@ app:
     enabled: ${REMINDERS_ENABLED:true}
     scan-interval-ms: ${REMINDER_SCAN_INTERVAL_MS:3600000}
     initial-delay-ms: ${REMINDER_INITIAL_DELAY_MS:60000}
+  email-sync:
+    enabled: ${EMAIL_SYNC_ENABLED:true}
+    days-to-scan: ${EMAIL_SYNC_DAYS_TO_SCAN:14}
+    scan-interval-ms: ${EMAIL_SYNC_SCAN_INTERVAL_MS:3600000}
+    initial-delay-ms: ${EMAIL_SYNC_INITIAL_DELAY_MS:120000}
 
 springdoc:
   api-docs:

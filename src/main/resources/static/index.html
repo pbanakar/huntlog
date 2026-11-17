@@ -146,6 +146,7 @@
                     </div>
                 </div>
                 <div class="top-bar-actions" id="top-bar-actions">
+                    <button type="button" class="btn btn-outline" id="btn-sync-emails" onclick="triggerEmailSync()" title="Scan mailbox and import/update applications">↻ Sync Emails</button>
                     <button type="button" class="btn btn-secondary" id="btn-refresh" onclick="refreshCurrentView()">Refresh</button>
                     <button type="button" class="btn btn-primary" id="btn-top-add" onclick="openAddModal()">+ New Application</button>
                 </div>
@@ -333,6 +334,57 @@
                                 </label>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Section 2: Email Auto-Sync Settings -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h2>Email Auto-Sync</h2>
+                            <p class="settings-card-subtitle">Automatically read and import job applications and interview updates from your mailbox.</p>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-row-text">
+                                <strong>Enable Email Auto-Sync</strong>
+                                <p>Periodically scan your inbox for application confirmations, interview invites, and status updates.</p>
+                            </div>
+                            <div class="settings-row-action">
+                                <label class="switch" for="toggle-email-sync">
+                                    <input type="checkbox" id="toggle-email-sync" onchange="handleToggleEmailSync(event)">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <form id="email-sync-form" class="sync-config-form" onsubmit="handleSaveSyncConfig(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sync-imap-host">IMAP Server Host</label>
+                                    <input type="text" id="sync-imap-host" placeholder="imap.gmail.com" value="imap.gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sync-imap-port">IMAP Port</label>
+                                    <input type="number" id="sync-imap-port" placeholder="993" value="993">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sync-imap-user">Email Address</label>
+                                    <input type="email" id="sync-imap-user" placeholder="you@gmail.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sync-imap-pass">Google App Password</label>
+                                    <input type="password" id="sync-imap-pass" placeholder="••••••••••••••••" autocomplete="new-password">
+                                    <span class="help-text">Use a 16-character Google App Password (not your primary password).</span>
+                                </div>
+                            </div>
+                            <div class="settings-sync-status-row">
+                                <span id="sync-last-time-info" class="sync-last-time">Last synced: Never</span>
+                                <div class="sync-actions-group">
+                                    <button type="submit" id="btn-save-sync-config" class="btn btn-secondary">Save Configuration</button>
+                                    <button type="button" id="btn-settings-sync-now" class="btn btn-primary" onclick="triggerEmailSync()">Sync Now</button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
 
                     <!-- Section 2: Account Info -->

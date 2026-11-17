@@ -273,15 +273,28 @@ async function fetchUserPreferences() {
     return await response.json();
 }
 
-async function updateUserPreferences(emailRemindersEnabled) {
+async function updateUserPreferences(data) {
+    const payload = typeof data === 'boolean' ? { emailRemindersEnabled: data } : data;
     const response = await authFetch('/users/me/preferences', {
         method: 'PUT',
-        body: JSON.stringify({ emailRemindersEnabled })
+        body: JSON.stringify(payload)
     });
 
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
         throw new Error(body.message || 'Failed to update preferences.');
+    }
+    return body;
+}
+
+async function triggerEmailSyncApi() {
+    const response = await authFetch('/sync/emails', {
+        method: 'POST'
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(body.message || 'Failed to sync emails.');
     }
     return body;
 }
@@ -480,8 +493,12 @@ function renderApplicationsTable(applications) {
             ? `<button type="button" class="btn btn-sm btn-outline" title="Copy Job URL" onclick="copyJobUrl('${escapeHtml(app.jobUrl.replace(/'/g, "\\'"))}')">Copy URL</button>`
             : '';
 
+        const sourceBadge = app.source === 'EMAIL_SYNC'
+            ? '<span class="badge-source-sync" title="Imported via email auto-sync">✉ Sync</span>'
+            : '';
+
         tr.innerHTML = `
-            <td><strong>${company}</strong></td>
+            <td><strong>${company}</strong>${sourceBadge}</td>
             <td>${role}</td>
             <td>${renderStatusBadge(app.status)}</td>
             <td>${appliedDate}</td>
@@ -621,6 +638,11 @@ async function loadSettingsPage() {
     const emailEl = document.getElementById('settings-user-email');
     const sinceEl = document.getElementById('settings-user-since');
     const toggleEl = document.getElementById('toggle-email-reminders');
+    const toggleSyncEl = document.getElementById('toggle-email-sync');
+    const imapHostEl = document.getElementById('sync-imap-host');
+    const imapPortEl = document.getElementById('sync-imap-port');
+    const imapUserEl = document.getElementById('sync-imap-user');
+    const lastSyncEl = document.getElementById('sync-last-time-info');
 
     if (nameEl) nameEl.textContent = getUserName();
     if (emailEl) emailEl.textContent = getUserEmail();
@@ -630,6 +652,23 @@ async function loadSettingsPage() {
         const prefs = await fetchUserPreferences();
         if (toggleEl) {
             toggleEl.checked = Boolean(prefs.emailRemindersEnabled);
+        }
+        if (toggleSyncEl) {
+            toggleSyncEl.checked = Boolean(prefs.emailSyncEnabled);
+        }
+        if (imapHostEl && prefs.imapHost) {
+            imapHostEl.value = prefs.imapHost;
+        }
+        if (imapPortEl && prefs.imapPort) {
+            imapPortEl.value = prefs.imapPort;
+        }
+        if (imapUserEl) {
+            imapUserEl.value = prefs.imapUsername || getUserEmail();
+        }
+        if (lastSyncEl) {
+            lastSyncEl.textContent = prefs.lastEmailSyncedAt
+                ? `Last synced: ${new Date(prefs.lastEmailSyncedAt).toLocaleString()}`
+                : 'Last synced: Never';
         }
     } catch (err) {
         console.warn('Failed to load preferences:', err);
@@ -728,8 +767,100 @@ function renderTopCompaniesTable(analytics) {
 }
 
 // ==========================================
-// --- SETTINGS ACTIONS ---
+// --- EMAIL SYNC & SETTINGS ACTIONS ---
 // ==========================================
+async function triggerEmailSync() {
+    const btnTop = document.getElementById('btn-sync-emails');
+    const btnSettings = document.getElementById('btn-settings-sync-now');
+
+    if (btnTop) {
+        btnTop.disabled = true;
+        btnTop.textContent = '↻ Syncing...';
+    }
+    if (btnSettings) {
+        btnSettings.disabled = true;
+        btnSettings.textContent = 'Syncing...';
+    }
+
+    try {
+        const summary = await triggerEmailSyncApi();
+        const msg = `✓ Synced: ${summary.createdCount} created, ${summary.updatedCount} updated (${summary.scannedCount} scanned)`;
+        showToast(msg, 'success');
+        await loadApplicationsData();
+
+        const lastSyncEl = document.getElementById('sync-last-time-info');
+        if (lastSyncEl) {
+            lastSyncEl.textContent = `Last synced: ${new Date().toLocaleString()}`;
+        }
+    } catch (err) {
+        console.error('Email sync error:', err);
+        showToast('✗ ' + err.message, 'error');
+    } finally {
+        if (btnTop) {
+            btnTop.disabled = false;
+            btnTop.textContent = '↻ Sync Emails';
+        }
+        if (btnSettings) {
+            btnSettings.disabled = false;
+            btnSettings.textContent = 'Sync Now';
+        }
+    }
+}
+
+async function handleToggleEmailSync(event) {
+    const enabled = event.target.checked;
+    try {
+        await updateUserPreferences({ emailSyncEnabled: enabled });
+        showToast(enabled ? '✓ Email auto-sync enabled' : '✓ Email auto-sync disabled', 'success');
+    } catch (err) {
+        event.target.checked = !enabled;
+        showToast('✗ ' + err.message, 'error');
+    }
+}
+
+async function handleSaveSyncConfig(event) {
+    if (event) event.preventDefault();
+    const hostEl = document.getElementById('sync-imap-host');
+    const portEl = document.getElementById('sync-imap-port');
+    const userEl = document.getElementById('sync-imap-user');
+    const passEl = document.getElementById('sync-imap-pass');
+    const btn = document.getElementById('btn-save-sync-config');
+
+    const host = hostEl ? hostEl.value.trim() : 'imap.gmail.com';
+    const port = portEl ? (parseInt(portEl.value.trim(), 10) || 993) : 993;
+    const user = userEl ? userEl.value.trim() : '';
+    const pass = passEl ? passEl.value.trim() : '';
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+    }
+
+    try {
+        const payload = {
+            imapHost: host,
+            imapPort: port,
+            imapUsername: user
+        };
+        if (pass) {
+            payload.imapPassword = pass;
+        }
+
+        await updateUserPreferences(payload);
+        showToast('✓ IMAP email configuration saved', 'success');
+        if (passEl) {
+            passEl.value = '';
+        }
+    } catch (err) {
+        showToast('✗ ' + err.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save Configuration';
+        }
+    }
+}
+
 async function handleToggleEmailReminders(e) {
     const checked = e.target.checked;
     try {
@@ -1289,6 +1420,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const regForm = document.getElementById('register-form');
     if (regForm) {
         regForm.addEventListener('submit', handleRegister);
+    }
+
+    // Attach event listeners for Email Auto-Sync
+    const btnSyncTop = document.getElementById('btn-sync-emails');
+    if (btnSyncTop) {
+        btnSyncTop.addEventListener('click', triggerEmailSync);
+    }
+    const btnSyncSettings = document.getElementById('btn-settings-sync-now');
+    if (btnSyncSettings) {
+        btnSyncSettings.addEventListener('click', triggerEmailSync);
+    }
+    const emailSyncForm = document.getElementById('email-sync-form');
+    if (emailSyncForm) {
+        emailSyncForm.addEventListener('submit', handleSaveSyncConfig);
+    }
+    const toggleSyncEl = document.getElementById('toggle-email-sync');
+    if (toggleSyncEl) {
+        toggleSyncEl.addEventListener('change', handleToggleEmailSync);
     }
 
     route();

@@ -1307,3 +1307,44 @@ input:checked + .slider:before {
         align-self: flex-end;
     }
 }
+
+/* Email Auto-Sync Styles */
+.badge-source-sync {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: #e0f2fe;
+    color: #0369a1;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.settings-sync-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.sync-actions-group {
+    display: flex;
+    gap: 10px;
+}
+
+.sync-last-time {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.help-text {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}

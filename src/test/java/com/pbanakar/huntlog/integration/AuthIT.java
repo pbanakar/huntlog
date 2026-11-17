@@ -11,6 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,9 +31,10 @@ class AuthIT {
     @Test
     @DisplayName("POST /api/v1/auth/register → 201, returns JWT token, email, name")
     void register_success() throws Exception {
+        String email = "alice_" + UUID.randomUUID() + "@test.com";
         RegisterRequest request = new RegisterRequest();
         request.setName("Alice Dev");
-        request.setEmail("alice@test.com");
+        request.setEmail(email);
         request.setPassword("password123");
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -39,16 +42,17 @@ class AuthIT {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.token", notNullValue()))
-                .andExpect(jsonPath("$.email").value("alice@test.com"))
+                .andExpect(jsonPath("$.email").value(email))
                 .andExpect(jsonPath("$.name").value("Alice Dev"));
     }
 
     @Test
     @DisplayName("POST /api/v1/auth/register with duplicate email → 409 Conflict")
     void register_duplicateEmail_returns409() throws Exception {
+        String email = "bob_" + UUID.randomUUID() + "@test.com";
         RegisterRequest request = new RegisterRequest();
         request.setName("Bob Dev");
-        request.setEmail("bob@test.com");
+        request.setEmail(email);
         request.setPassword("password123");
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -68,9 +72,10 @@ class AuthIT {
     @Test
     @DisplayName("POST /api/v1/auth/login with valid credentials → 200, returns token")
     void login_success() throws Exception {
+        String email = "charlie_" + UUID.randomUUID() + "@test.com";
         RegisterRequest registerReq = new RegisterRequest();
         registerReq.setName("Charlie Dev");
-        registerReq.setEmail("charlie@test.com");
+        registerReq.setEmail(email);
         registerReq.setPassword("secretPass123");
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -79,7 +84,7 @@ class AuthIT {
                 .andExpect(status().isCreated());
 
         LoginRequest loginReq = new LoginRequest();
-        loginReq.setEmail("charlie@test.com");
+        loginReq.setEmail(email);
         loginReq.setPassword("secretPass123");
 
         mockMvc.perform(post("/api/v1/auth/login")
@@ -87,16 +92,17 @@ class AuthIT {
                         .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token", notNullValue()))
-                .andExpect(jsonPath("$.email").value("charlie@test.com"))
+                .andExpect(jsonPath("$.email").value(email))
                 .andExpect(jsonPath("$.name").value("Charlie Dev"));
     }
 
     @Test
     @DisplayName("POST /api/v1/auth/login with invalid password → 401 Unauthorized")
     void login_invalidPassword_returns401() throws Exception {
+        String email = "dave_" + UUID.randomUUID() + "@test.com";
         RegisterRequest registerReq = new RegisterRequest();
         registerReq.setName("Dave Dev");
-        registerReq.setEmail("dave@test.com");
+        registerReq.setEmail(email);
         registerReq.setPassword("secretPass123");
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -105,7 +111,7 @@ class AuthIT {
                 .andExpect(status().isCreated());
 
         LoginRequest loginReq = new LoginRequest();
-        loginReq.setEmail("dave@test.com");
+        loginReq.setEmail(email);
         loginReq.setPassword("wrongPassword");
 
         mockMvc.perform(post("/api/v1/auth/login")

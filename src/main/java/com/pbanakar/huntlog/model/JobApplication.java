@@ -5,15 +5,12 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "job_applications")
-@EntityListeners(AuditingEntityListener.class)
 public class JobApplication {
 
     @Id
@@ -39,7 +36,6 @@ public class JobApplication {
     @Column(name = "applied_date", nullable = false)
     private LocalDate appliedDate;
 
-    @LastModifiedDate
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
 

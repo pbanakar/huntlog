@@ -198,11 +198,12 @@ public class EmailSyncService {
         app.setCompany(parsed.getCompany());
         app.setRole(parsed.getPosition());
         app.setStatus(parsed.getStatus() != null ? parsed.getStatus() : ApplicationStatus.APPLIED);
-        app.setAppliedDate(parsed.getEmailDate() != null ? parsed.getEmailDate() : LocalDate.now());
+        LocalDate appliedDate = parsed.getEmailDate() != null ? parsed.getEmailDate() : LocalDate.now();
+        app.setAppliedDate(appliedDate);
         app.setJobUrl(parsed.getJobUrl());
         app.setSource("EMAIL_SYNC");
         app.setNotes(parsed.getNotes());
-        app.setLastUpdated(LocalDateTime.now());
+        app.setLastUpdated(appliedDate.atStartOfDay());
         return app;
     }
 

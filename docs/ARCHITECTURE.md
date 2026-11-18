@@ -42,7 +42,7 @@ flowchart TD
     subgraph PersistenceLayer ["Persistence Layer"]
         UserRepo[("UserRepository\n(users table)")]
         AppRepo[("JobApplicationRepository\n(job_applications table)")]
-        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1-V5)")]
+        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1-V6)")]
     end
 
     subgraph ExternalMail ["Mail Services"]
@@ -155,7 +155,7 @@ The reminder subsystem identifies neglected job applications and sends consolida
 
 ```mermaid
 flowchart TD
-    Scheduler(["Startup + hourly scheduler"]) --> CheckEnabled{"Reminders Enabled?"}
+    Scheduler(["Startup + hourly scheduler OR Manual 'Send Reminders Now' Trigger"]) --> CheckEnabled{"Reminders Enabled?"}
     CheckEnabled -- No --> LogSkip["Log: Reminders disabled, skipping"]
     CheckEnabled -- Yes --> QueryDB["Query stale applications\n(Status IN APPLIED, SCREENING, INTERVIEW\nAND lastUpdated is null or older than staleDays\nAND reminder not sent in the last day\nAND emailRemindersEnabled = true)"]
     
@@ -163,8 +163,13 @@ flowchart TD
     GroupByUser --> IterateUsers["For each User with Stale Applications"]
     
     IterateUsers --> BuildEmail["Format Consolidated Plain-Text Digest"]
-    BuildEmail --> SendMail["Send via JavaMailSender (SMTP)"]
-    SendMail --> ErrorCatch{"Send Successful?"}
+    BuildEmail --> CheckMailSender{"Server SMTP Configured?"}
+    CheckMailSender -- Yes --> SendServerMail["Send via Primary JavaMailSender"]
+    CheckMailSender -- No / Fails --> CheckUserAppPass{"User IMAP Credentials Present?"}
+    CheckUserAppPass -- Yes --> SendUserMail["Send via User Google App Password (smtp.gmail.com:587 STARTTLS)"]
+    CheckUserAppPass -- No --> FailDispatch["Log Failure (Credentials missing)"]
+    SendServerMail --> ErrorCatch{"Send Successful?"}
+    SendUserMail --> ErrorCatch
     ErrorCatch -- Yes --> Track["Store lastReminderSentAt"]
     Track --> LogSuccess["Log Success"]
     ErrorCatch -- No (Exception) --> LogError["Log Error (Continue loop without throwing)"]
@@ -172,6 +177,9 @@ flowchart TD
 
 ### Key Engineering Guarantees
 - **Consolidation**: Stale applications are grouped per user so candidates receive one unified summary email instead of multiple disjointed messages.
+- **Dual-Mode SMTP Delivery**: If global server SMTP credentials (`MAIL_USERNAME`, `MAIL_PASSWORD`) are omitted (as in zero-configuration cloud setups), `EmailService` falls back to user-level Google App Passwords (`user.imapUsername` and `user.imapPassword`) to securely deliver outbound reminder digests over `smtp.gmail.com:587` with STARTTLS.
+- **Accurate Staleness Tracking**: `JobApplication.lastUpdated` is initialized to the application submission date (`appliedDate.atStartOfDay()`) upon creation. Automatic JPA entity auditing (`@LastModifiedDate`) is disabled to prevent incidental database updates from resetting the 7-day stale timer.
+- **Manual Trigger Endpoint**: Users can immediately trigger an on-demand reminder scan and dispatch via `POST /api/v1/users/me/reminders/send` or from the Settings UI.
 - **Fault Isolation**: Email dispatch failures for one user are logged without terminating the loop, ensuring remaining users still receive their reminders.
 - **Scoped Querying**: Uses JPQL with `JOIN FETCH` to prevent N+1 queries when loading user details.
 
@@ -249,8 +257,12 @@ The parser inspects email headers (`From`, `Subject`) and body contents (plain t
 The frontend is implemented as a lightweight Single Page Application (SPA) without third-party frameworks:
 - **Location**: `src/main/resources/static/` (`index.html`, `styles.css`, `app.js`).
 - **Routing**: Hash-based routing (`#login`, `#register`, `#dashboard`, `#view-settings`) with immediate redirection if unauthenticated.
-- **Email Sync Controls**:
+- **Streamlined Applications Table**:
+  - The main dashboard table focuses on essential columns: `Company`, `Role`, `Status`, `Applied`, and `Notes / Links`.
+  - Dedicated `Location` and `Job URL` columns were removed from the table view to optimize horizontal screen real estate for dense displays and mobile devices. Location details and job links remain fully supported in the backend data model and are rendered directly within the `Notes` column (e.g. `View Job ↗` link or preview text).
+- **Email Sync and Reminder Controls**:
   - **Top Navigation Action**: Instant "Sync Emails" button triggering `POST /api/v1/sync/emails` with spinning animation and status feedback.
+  - **Settings Panel**: Dedicated "Follow-up Reminders" section with a "Send Reminders Now" button (`POST /api/v1/users/me/reminders/send`) to immediately dispatch reminder digests for stale applications.
   - **Settings Panel**: Dedicated "Email Auto-Sync" section allowing users to toggle background syncing, specify IMAP server host and port (defaulting to `imap.gmail.com:993`), provide Google App Passwords, inspect last sync timestamp, and run manual scans.
   - **Visual Badges**: Distinguishes manual submissions (`MANUAL`) from automated imports (`EMAIL_SYNC`) with distinct metadata badges.
 - **Single Service Integration**: Served directly from Spring Boot alongside the REST API, avoiding CORS configuration issues across cloud deployments.
@@ -349,6 +361,7 @@ erDiagram
 - `V3__add_email_preferences.sql`: Adds `email_reminders_enabled` boolean column to `users` table for user notification controls.
 - `V4__add_reminder_tracking.sql`: Adds `last_reminder_sent_at` to prevent duplicate reminder emails.
 - `V5__add_email_sync_settings.sql`: Adds mailbox synchronization columns (`email_sync_enabled`, `imap_host`, `imap_port`, `imap_username`, `imap_password`, `last_email_synced_at`) to the `users` table, adds `source` column to `job_applications` (distinguishing `MANUAL` vs `EMAIL_SYNC`), and creates performance index `idx_job_applications_user_company` on `(user_id, company)`.
+- `V6__fix_job_applications_stale_timestamps.sql`: Fixes staleness evaluation by resetting `last_updated = applied_date` for applications where `last_updated > applied_date` and `last_reminder_sent_at IS NULL`, addressing historical email imports where auditing erroneously set `last_updated` to current time.
 
 ---
 

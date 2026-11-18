@@ -461,21 +461,16 @@ function renderApplicationsTable(applications) {
         
         const company = escapeHtml(app.company || '');
         const role = escapeHtml(app.role || '');
-        const location = escapeHtml(app.location || '—');
         const appliedDate = app.appliedDate ? escapeHtml(app.appliedDate) : '—';
         
-        // Notes column with truncation and tooltip
+        // Notes column with preview and optional job link
         let notesHtml = '<span class="link-empty">—</span>';
-        if (app.notes && app.notes.trim()) {
-            const rawNotes = app.notes.trim();
-            const previewText = rawNotes.length > 30 ? escapeHtml(rawNotes.substring(0, 30)) + '…' : escapeHtml(rawNotes);
+        const rawNotes = app.notes && app.notes.trim() ? app.notes.trim() : '';
+        if (rawNotes) {
+            const previewText = rawNotes.length > 40 ? escapeHtml(rawNotes.substring(0, 40)) + '…' : escapeHtml(rawNotes);
             notesHtml = `<span class="table-notes-preview" title="${escapeHtml(rawNotes)}">${previewText}</span>`;
-        }
-
-        // Job URL link column
-        let jobUrlHtml = '<span class="link-empty">—</span>';
-        if (app.jobUrl && app.jobUrl.trim()) {
-            jobUrlHtml = `<a href="${escapeHtml(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="link-job-view" title="${escapeHtml(app.jobUrl)}">View ↗</a>`;
+        } else if (app.jobUrl && app.jobUrl.trim()) {
+            notesHtml = `<a href="${escapeHtml(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="link-job-view" title="${escapeHtml(app.jobUrl)}">View Job ↗</a>`;
         }
 
         // Days Since Update column
@@ -489,10 +484,6 @@ function renderApplicationsTable(applications) {
         const updateBtnClass = hasNext ? 'btn btn-sm btn-outline' : 'btn btn-sm btn-disabled';
         const updateBtnTitle = hasNext ? 'Update Status' : 'Terminal status (No further transitions)';
 
-        const copyBtnHtml = app.jobUrl && app.jobUrl.trim()
-            ? `<button type="button" class="btn btn-sm btn-outline" title="Copy Job URL" onclick="copyJobUrl('${escapeHtml(app.jobUrl.replace(/'/g, "\\'"))}')">Copy URL</button>`
-            : '';
-
         const sourceBadge = app.source === 'EMAIL_SYNC'
             ? '<span class="badge-source-sync" title="Imported via email auto-sync">✉ Sync</span>'
             : '';
@@ -502,9 +493,7 @@ function renderApplicationsTable(applications) {
             <td>${role}</td>
             <td>${renderStatusBadge(app.status)}</td>
             <td>${appliedDate}</td>
-            <td>${location}</td>
             <td>${notesHtml}</td>
-            <td>${jobUrlHtml}</td>
             <td>${daysHtml}</td>
             <td class="actions-col">
                 <div class="actions-cell">
@@ -514,7 +503,6 @@ function renderApplicationsTable(applications) {
                     <button type="button" class="btn btn-sm btn-outline" title="Edit Application" onclick="openEditModalById(${app.id})">
                         Edit
                     </button>
-                    ${copyBtnHtml}
                     <button type="button" class="btn btn-sm btn-danger-outline" title="Delete application" onclick="confirmDeleteApplication(${app.id}, '${escapeHtml(app.company.replace(/'/g, "\\'"))}')">
                         Delete
                     </button>
@@ -869,6 +857,48 @@ async function handleToggleEmailReminders(e) {
     } catch (err) {
         e.target.checked = !checked; // Revert switch state on error
         showToast('✗ ' + err.message, 'error');
+    }
+}
+
+async function handleTriggerManualReminders() {
+    const btn = document.getElementById('btn-trigger-reminders');
+    const originalText = btn ? btn.textContent : 'Send Reminders Now';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+    }
+
+    try {
+        const token = getToken();
+        if (!token) throw new Error('You must be logged in.');
+
+        const res = await fetch('/api/v1/users/me/reminders/send', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || `Failed to send reminders (${res.status})`);
+        }
+
+        const data = await res.json();
+        const count = data.applicationCount || 0;
+        if (count > 0) {
+            showToast(`Follow-up reminder sent for ${count} stale application(s) to your email!`, 'success');
+        } else {
+            showToast('No stale applications (7+ days without updates) currently need reminders.', 'info');
+        }
+    } catch (err) {
+        console.error('Trigger reminders error:', err);
+        showToast('✗ ' + (err.message || 'Error sending reminders.'), 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
     }
 }
 

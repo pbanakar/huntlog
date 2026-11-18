@@ -224,9 +224,7 @@
                                     <th>Role</th>
                                     <th>Status</th>
                                     <th>Applied Date</th>
-                                    <th>Location</th>
                                     <th>Notes</th>
-                                    <th>Job URL</th>
                                     <th>Last Updated</th>
                                     <th class="actions-col">Actions</th>
                                 </tr>
@@ -327,7 +325,8 @@
                                 <strong>Follow-up Reminders</strong>
                                 <p>Send me email reminders when applications haven't been updated in 7+ days.</p>
                             </div>
-                            <div class="settings-row-action">
+                            <div class="settings-row-action" style="display:flex; align-items:center; gap:12px;">
+                                <button type="button" class="btn btn-sm btn-secondary" id="btn-trigger-reminders" onclick="handleTriggerManualReminders()">Send Reminders Now</button>
                                 <label class="switch" for="toggle-email-reminders">
                                     <input type="checkbox" id="toggle-email-reminders" onchange="handleToggleEmailReminders(event)">
                                     <span class="slider round"></span>

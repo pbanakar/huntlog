@@ -132,6 +132,12 @@ Mailtrap is a safe SMTP sandbox for testing emails without sending messages to r
 
 For production on Render, see [DEPLOYMENT.md](DEPLOYMENT.md) for generating a 16-character Google App Password.
 
+#### Dual-Mode SMTP Delivery (User Google App Password Fallback)
+
+HuntLog supports two delivery modes for reminder emails:
+1. **Server-Level SMTP**: If `MAIL_USERNAME` and `MAIL_PASSWORD` are configured in the environment, HuntLog sends reminders using the central SMTP server.
+2. **User-Level Google App Password Fallback**: If server-level credentials are not configured or authentication fails, HuntLog automatically falls back to your configured Google App Password (saved under Settings > Email Auto-Sync). The service connects directly to `smtp.gmail.com:587` using STARTTLS to dispatch your consolidated digest. This guarantees reminder delivery even on free cloud hosts where server-wide SMTP is unconfigured.
+
 #### Disabling Email Reminders
 
 ##### Method 1: Per-User Preference (Recommended)
@@ -153,14 +159,22 @@ REMINDERS_ENABLED=false
 
 #### Test Reminders Immediately
 
-After logging in, call the authenticated endpoint below to send reminders without waiting for the scheduled scan:
+You can trigger a reminder scan on demand without waiting for the scheduled background job:
+
+##### Via Web Dashboard
+1. Navigate to **Settings** (`#view-settings`).
+2. Under **Follow-up Reminders**, click **Send Reminders Now**.
+3. A toast notification will display the count of stale applications processed and dispatched.
+
+##### Via REST API
+After logging in, call the authenticated endpoint below:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/users/me/reminders/send \
   -H "Authorization: Bearer <your-jwt>"
 ```
 
-The response contains the number of applications notified. Check application logs for SMTP failures.
+The response returns `{"message": "Reminders processed", "remindersSent": N}` indicating the number of stale applications found and emailed.
 
 ---
 
@@ -215,10 +229,10 @@ The parsing engine identifies confirmation and status emails from:
 1. **Register an Account**: Open `http://localhost:8080` and switch to the "Register" tab. Enter your name, email, and password.
 2. **View Live Analytics**: The dashboard displays real-time statistics including total applications, applications submitted this week, response rate percentage, and oldest pending application age.
 3. **Trigger Email Sync**: Click the **Sync Emails** button in the top navigation bar at any time to scan your configured mailbox. Applications imported via email sync will display a distinct **Sync** badge.
-4. **Create Applications Manually**: Click "+ New Application" to manually record company, role, applied date, location, job URL, and notes.
+4. **Create Applications Manually**: Click "+ New Application" to manually record company, role, applied date, location, job URL, and notes. The dashboard table cleanly organizes records under Company, Role, Status, Applied, and Notes / Links (with quick links and location previews without overcrowding the screen).
 5. **Update Status**: Click the "Status" button next to any row. The dropdown only permits transitions allowed by the state machine (e.g. APPLIED can only transition to SCREENING, REJECTED, or WITHDRAWN).
 6. **Real-time Search and Filter**: Use the company search box to filter instantly on the client side, or filter by specific application status using the dropdown.
-7. **Configure Settings**: Navigate to **Settings** in the sidebar to toggle email reminders, manage IMAP email auto-sync credentials, inspect the latest sync timestamp, or delete your account.
+7. **Configure Settings**: Navigate to **Settings** in the sidebar to toggle email reminders, trigger on-demand reminder dispatch ("Send Reminders Now"), manage IMAP email auto-sync credentials, inspect the latest sync timestamp, or delete your account.
 8. **Mobile View**: The layout automatically adapts to mobile screens, converting the sidebar into a collapsible top navigation.
 
 ---

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 @Service
@@ -45,7 +46,9 @@ public class JobApplicationService {
         app.setCompany(request.getCompany());
         app.setRole(request.getRole());
         app.setStatus(ApplicationStatus.APPLIED);
-        app.setAppliedDate(request.getAppliedDate() != null ? request.getAppliedDate() : LocalDate.now());
+        LocalDate applied = request.getAppliedDate() != null ? request.getAppliedDate() : LocalDate.now();
+        app.setAppliedDate(applied);
+        app.setLastUpdated(applied.atStartOfDay());
         app.setJobUrl(request.getJobUrl());
         app.setNotes(request.getNotes());
         app.setLocation(request.getLocation());
@@ -95,6 +98,8 @@ public class JobApplicationService {
         if (request.getLocation() != null) {
             app.setLocation(request.getLocation());
         }
+
+        app.setLastUpdated(LocalDateTime.now());
 
         JobApplication saved = repository.save(app);
         return toResponse(saved);

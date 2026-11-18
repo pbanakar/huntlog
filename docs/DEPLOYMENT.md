@@ -74,6 +74,10 @@ Before beginning deployment, ensure you have:
 | `REMINDER_INITIAL_DELAY_MS` | `60000` | Initial reminder scan delay in milliseconds |
 | `AUTH_RATE_LIMIT_MAX_ATTEMPTS` | `10` | Login/register attempts per IP per window |
 | `AUTH_RATE_LIMIT_WINDOW_SECONDS` | `60` | Authentication rate-limit window |
+| `EMAIL_SYNC_ENABLED` | `true` | Enables the background mailbox synchronization scheduler |
+| `EMAIL_SYNC_DAYS_TO_SCAN` | `14` | Lookback window in days for initial mailbox scan |
+| `EMAIL_SYNC_SCAN_INTERVAL_MS` | `3600000` | Mailbox sync scan interval in milliseconds (1 hour) |
+| `EMAIL_SYNC_INITIAL_DELAY_MS` | `120000` | Delay in milliseconds before first mailbox scan (2 minutes) |
 
 6. Click **Create Web Service**.
 7. Render will build the multi-stage Docker container using the Google Cloud Maven Central mirror and start the service.
@@ -104,6 +108,8 @@ UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping th
    Open `https://<your-render-domain>.onrender.com` in your browser.
    - Register a new account.
    - Verify login, adding applications, and analytics cards.
+   - Open **Settings** to verify the **Email Auto-Sync** panel.
+   - Configure a Google App Password, click **Save Configuration**, and test **Sync Emails**.
 
 2. **Health Check Endpoint**:
    ```bash
@@ -116,8 +122,11 @@ UptimeRobot will continuously ping the lightweight Actuator endpoint, keeping th
 
 3. **Swagger UI (Interactive API Documentation)**:
    Open `https://<your-render-domain>.onrender.com/swagger-ui.html` in your browser.
-   - Verify all endpoints are grouped under Authentication, Job Applications, Analytics, and User Preferences.
+   - Verify all endpoints are grouped under Authentication, Job Applications, Analytics, User Preferences, and Email Synchronization.
    - Click Authorize, paste your JWT token, and test protected endpoints directly.
 
-4. **Database Persistence**:
-   Flyway migrations run automatically on startup against Neon PostgreSQL. Existing migration files must not be edited after deployment; add schema changes as new migrations such as `V4__...`.
+4. **Database Persistence and Migrations**:
+   Flyway migrations run automatically on startup against Neon PostgreSQL up to `V5__add_email_sync_settings.sql`. Existing migration files must not be edited after deployment; add schema changes as new migrations such as `V6__...`.
+
+5. **Outbound IMAP Network Access**:
+   Render web services permit outbound TCP connections on port 993 (IMAP over TLS/SSL). Ensure users supply valid Google App Passwords generated from accounts with 2-Step Verification enabled.

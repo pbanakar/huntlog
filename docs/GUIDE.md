@@ -23,8 +23,15 @@ For cloud deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Automated Follow-Up Reminders
 - HuntLog scans pending applications (APPLIED, SCREENING, or INTERVIEW) that have not been updated in 7 or more days.
-- The scan runs after startup and hourly by default, then sends one consolidated email per user.
+- The scan runs after startup and hourly by default, then sends one consolidated email per user via SMTP.
 - Successful reminders are tracked so the same application is not emailed again every hour.
+
+### Automated Mailbox Synchronization
+- HuntLog connects to your mailbox via IMAP over TLS/SSL (port 993) using a 16-character Google App Password.
+- An intelligent parser scans incoming emails from top Applicant Tracking Systems (Greenhouse, Lever, Workday, HiBob, Keka, Gem, iCIMS, HackerRank, Ashby, and direct recruiters).
+- Detected applications are automatically imported with status `APPLIED` and tagged with an `EMAIL_SYNC` source badge.
+- Status updates (such as interview invitations, assessments, and rejections) are matched against existing applications and advance the pipeline in strict compliance with the state machine.
+- Applications are never duplicated or accidentally regressed; every sync run updates a persistent timestamp checkpoint.
 
 ---
 
@@ -95,11 +102,17 @@ The application starts immediately on `http://localhost:8080`, applying Flyway m
 
 ---
 
-## 4. Email Reminders Setup and Testing
+## 4. Email Reminders and Mailbox Synchronization Setup
 
-HuntLog includes an automated reminder system powered by Spring Boot Scheduling and JavaMailSender.
+HuntLog integrates with your email in two distinct directions:
+1. **Outbound SMTP**: Dispatches consolidated follow-up reminder digests to you for stale pending applications.
+2. **Inbound IMAP**: Connects to your mailbox over TLS/SSL (port 993) to read and parse job applications and interview updates automatically.
 
-### Setting Up Mailtrap for Local Testing
+---
+
+### 4.1 Follow-Up Email Reminders (SMTP)
+
+#### Setting Up Mailtrap for Local Testing
 
 Mailtrap is a safe SMTP sandbox for testing emails without sending messages to real addresses.
 
@@ -115,13 +128,13 @@ Mailtrap is a safe SMTP sandbox for testing emails without sending messages to r
    MAILTRAP_PASSWORD=your_mailtrap_password
    ```
 
-### Using Real Gmail SMTP in Production
+#### Using Real Gmail SMTP in Production
 
 For production on Render, see [DEPLOYMENT.md](DEPLOYMENT.md) for generating a 16-character Google App Password.
 
-### Disabling Email Reminders
+#### Disabling Email Reminders
 
-#### Method 1: Per-User Preference (Recommended)
+##### Method 1: Per-User Preference (Recommended)
 Users can disable reminder emails via the preferences API:
 
 ```powershell
@@ -132,13 +145,13 @@ Users can disable reminder emails via the preferences API:
   -d "@-"
 ```
 
-#### Method 2: System-Wide Config
+##### Method 2: System-Wide Config
 Disable the scheduler globally by setting the environment variable:
 ```env
 REMINDERS_ENABLED=false
 ```
 
-### Test Reminders Immediately
+#### Test Reminders Immediately
 
 After logging in, call the authenticated endpoint below to send reminders without waiting for the scheduled scan:
 
@@ -151,14 +164,62 @@ The response contains the number of applications notified. Check application log
 
 ---
 
+### 4.2 Automated Mailbox Synchronization (IMAP)
+
+HuntLog can periodically inspect your mailbox over IMAP (port 993) and automatically register applications or update pipeline statuses based on emails received from recruiters and Applicant Tracking Systems.
+
+#### Step 1: Generate a Google App Password
+For Gmail accounts with 2-Step Verification enabled, Google requires an App Password rather than your account password:
+
+1. Sign in to your [Google Account](https://myaccount.google.com/).
+2. Select **Security** from the left navigation.
+3. Under *How you sign in to Google*, ensure **2-Step Verification** is turned on.
+4. Search for **App passwords** in the top search bar (or navigate directly to [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)).
+5. Enter an app name (such as `HuntLog Email Sync`) and click **Create**.
+6. Copy the generated 16-character code (for example: `abcd efgh ijkl mnop`).
+
+#### Step 2: Configure via the Web Dashboard
+1. Log in to HuntLog at `http://localhost:8080`.
+2. Click **Settings** in the left sidebar menu (or navigate to `http://localhost:8080#view-settings`).
+3. Locate the **Email Auto-Sync** card:
+   - Toggle **Enable Email Auto-Sync** on.
+   - **IMAP Server Host**: `imap.gmail.com`
+   - **IMAP Port**: `993`
+   - **Email Address**: Your Gmail address (e.g. `you@gmail.com`).
+   - **Google App Password**: Paste the 16-character App Password generated in Step 1.
+4. Click **Save Configuration**. The password is saved securely and is never re-exposed to the client interface.
+5. Click **Sync Now** (or the **Sync Emails** button in the top navigation bar) to execute an on-demand scan.
+
+#### Step 3: Automated Background Scanning
+- When enabled, HuntLog runs a background scan every hour (`app.email-sync.scan-interval-ms=3600000`).
+- The initial scan evaluates messages received over the past 14 days (`app.email-sync.days-to-scan=14`).
+- Subsequent scans only process emails received after the recorded `lastEmailSyncedAt` timestamp.
+
+#### Supported ATS Providers and Detection Heuristics
+The parsing engine identifies confirmation and status emails from:
+- **Greenhouse** (`no-reply@greenhouse.io`, `greenhouse-mail.io`)
+- **Lever** (`no-reply@hire.lever.co`, `jobs.lever.co`)
+- **Workday** (`myworkday.com`, `myworkdayjobs.com`)
+- **HiBob** (`hibob.com`)
+- **Keka** (`keka.com`, `kekacareers`)
+- **Gem** (`gem.com`)
+- **iCIMS** (`icims.com`)
+- **HackerRank** (`hackerrank.com`)
+- **Ashby** (`ashbyhq.com`, `jobs.ashbyhq.com`)
+- **Direct Recruiter Emails** (Subject matching patterns: `Thank you for applying to <Company>`, `Interview with <Company>`)
+
+---
+
 ## 5. Using the Web Dashboard
 
 1. **Register an Account**: Open `http://localhost:8080` and switch to the "Register" tab. Enter your name, email, and password.
 2. **View Live Analytics**: The dashboard displays real-time statistics including total applications, applications submitted this week, response rate percentage, and oldest pending application age.
-3. **Create Applications**: Click "+ New Application" to add company, role, applied date, location, job URL, and notes.
-4. **Update Status**: Click the "Status" button next to any row. The dropdown only permits transitions allowed by the state machine (e.g. APPLIED can only transition to SCREENING, REJECTED, or WITHDRAWN).
-5. **Real-time Search and Filter**: Use the company search box to filter instantly on the client side, or filter by specific application status using the dropdown.
-6. **Mobile View**: The layout automatically adapts to mobile screens, converting the sidebar into a collapsible top navigation.
+3. **Trigger Email Sync**: Click the **Sync Emails** button in the top navigation bar at any time to scan your configured mailbox. Applications imported via email sync will display a distinct **Sync** badge.
+4. **Create Applications Manually**: Click "+ New Application" to manually record company, role, applied date, location, job URL, and notes.
+5. **Update Status**: Click the "Status" button next to any row. The dropdown only permits transitions allowed by the state machine (e.g. APPLIED can only transition to SCREENING, REJECTED, or WITHDRAWN).
+6. **Real-time Search and Filter**: Use the company search box to filter instantly on the client side, or filter by specific application status using the dropdown.
+7. **Configure Settings**: Navigate to **Settings** in the sidebar to toggle email reminders, manage IMAP email auto-sync credentials, inspect the latest sync timestamp, or delete your account.
+8. **Mobile View**: The layout automatically adapts to mobile screens, converting the sidebar into a collapsible top navigation.
 
 ---
 
@@ -268,22 +329,85 @@ Response (`422 Unprocessable Entity`):
 }
 ```
 
-### Step 7: Manage User Email Preferences
+### Step 7: Manage User Email and Auto-Sync Preferences
 
 ```powershell
-# 1. Fetch current preference
+# 1. Fetch current preferences
 curl.exe -s -X GET http://localhost:8080/api/v1/users/me/preferences `
   -H "Authorization: Bearer $token"
+```
 
-# 2. Update preference to false
-'{"emailRemindersEnabled":false}' | `
+Response (`200 OK`):
+```json
+{
+  "emailRemindersEnabled": true,
+  "emailSyncEnabled": false,
+  "imapHost": "imap.gmail.com",
+  "imapPort": 993,
+  "imapUsername": null,
+  "hasImapPassword": false,
+  "lastEmailSyncedAt": null
+}
+```
+
+```powershell
+# 2. Update preferences: enable email sync and configure IMAP credentials
+'{"emailRemindersEnabled":true,"emailSyncEnabled":true,"imapHost":"imap.gmail.com","imapPort":993,"imapUsername":"applicant@gmail.com","imapPassword":"your-16-char-app-pass"}' | `
   curl.exe -s -X PUT http://localhost:8080/api/v1/users/me/preferences `
   -H "Content-Type: application/json" `
   -H "Authorization: Bearer $token" `
   -d "@-"
 ```
 
-### Step 8: Retrieve Analytics
+Response (`200 OK`):
+```json
+{
+  "emailRemindersEnabled": true,
+  "emailSyncEnabled": true,
+  "imapHost": "imap.gmail.com",
+  "imapPort": 993,
+  "imapUsername": "applicant@gmail.com",
+  "hasImapPassword": true,
+  "lastEmailSyncedAt": null
+}
+```
+
+### Step 8: Trigger On-Demand Mailbox Synchronization
+
+```powershell
+# 1. Check sync status
+curl.exe -s -X GET http://localhost:8080/api/v1/sync/status `
+  -H "Authorization: Bearer $token"
+
+# 2. Trigger mailbox scan
+curl.exe -s -X POST http://localhost:8080/api/v1/sync/emails `
+  -H "Authorization: Bearer $token"
+```
+
+Response (`200 OK`):
+```json
+{
+  "scannedCount": 8,
+  "createdCount": 2,
+  "updatedCount": 1
+}
+```
+
+Applications imported from your mailbox are returned by `GET /api/v1/applications` with `"source": "EMAIL_SYNC"`:
+```json
+{
+  "id": 2,
+  "company": "Stripe",
+  "role": "Backend Engineer",
+  "status": "APPLIED",
+  "source": "EMAIL_SYNC",
+  "appliedDate": "2026-11-18",
+  "jobUrl": "https://jobs.lever.co/stripe/abc-123",
+  "allowedNextStatuses": ["SCREENING", "REJECTED", "WITHDRAWN"]
+}
+```
+
+### Step 9: Retrieve Analytics
 
 ```powershell
 curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
@@ -293,9 +417,9 @@ curl.exe -s -X GET http://localhost:8080/api/v1/analytics `
 Response (`200 OK`):
 ```json
 {
-  "totalApplications": 1,
+  "totalApplications": 2,
   "byStatus": {
-    "APPLIED": 0,
+    "APPLIED": 1,
     "SCREENING": 1,
     "INTERVIEW": 0,
     "OFFER": 0,
@@ -303,21 +427,25 @@ Response (`200 OK`):
     "REJECTED": 0,
     "WITHDRAWN": 0
   },
-  "appliedThisWeek": 1,
-  "appliedThisMonth": 1,
-  "responseRate": 100.0,
+  "appliedThisWeek": 2,
+  "appliedThisMonth": 2,
+  "responseRate": 50.0,
   "averageDaysToFirstUpdate": 0.0,
   "oldestPendingDays": 0,
   "topCompaniesByApplications": [
     {
       "company": "Google",
       "count": 1
+    },
+    {
+      "company": "Stripe",
+      "count": 1
     }
   ]
 }
 ```
 
-### Step 9: Delete Application
+### Step 10: Delete Application
 
 ```powershell
 curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
@@ -326,7 +454,7 @@ curl.exe -s -X DELETE http://localhost:8080/api/v1/applications/1 `
 
 Response: `204 No Content`
 
-### Step 10: Delete User Account (Danger Zone)
+### Step 11: Delete User Account (Danger Zone)
 
 Permanently removes the authenticated user and all their associated applications:
 

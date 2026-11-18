@@ -1,6 +1,6 @@
 # HuntLog — System Architecture and Technical Design
 
-This document details the architectural decisions, design patterns, state machine mechanics, security model, reminder scheduling pipeline, database schema, and frontend architecture for HuntLog.
+This document details the architectural decisions, design patterns, state machine mechanics, security model, reminder scheduling pipeline, automated mailbox synchronization system, database schema, and frontend architecture for HuntLog.
 
 ---
 
@@ -22,6 +22,7 @@ flowchart TD
         AppCtrl["JobApplicationController\n(/api/v1/applications/**)"]
         AnalyticsCtrl["AnalyticsController\n(/api/v1/analytics)"]
         UserCtrl["UserController\n(/api/v1/users/**)"]
+        SyncCtrl["EmailSyncController\n(/api/v1/sync/**)"]
         Actuator["Actuator Endpoint\n(/actuator/health)"]
     end
 
@@ -29,20 +30,24 @@ flowchart TD
         AuthService["AuthService\n(BCrypt Hashing, Token Generation)"]
         AppService["JobApplicationService\n(User Scoping and Pipeline Validation)"]
         AnalyticsService["AnalyticsService\n(Metrics, Response Rates, Projections)"]
-        UserService["UserService\n(User Notification Preferences)"]
+        UserService["UserService\n(User Preferences and Credentials)"]
         ReminderService["ReminderService\n(Scheduled Stale Pipeline Scanner)"]
-        EmailService["EmailService\n(JavaMailSender Template Dispatcher)"]
+        EmailService["EmailService\n(JavaMailSender SMTP Dispatcher)"]
+        EmailSyncService["EmailSyncService\n(Sync Orchestration and Deduplication)"]
+        ImapClient["ImapClient\n(Jakarta Mail IMAP over TLS/SSL)"]
+        EmailParserService["EmailParserService\n(ATS Regex and Status Heuristics)"]
         StateMachine["ApplicationStateMachine\n(Enum State Transition Validator)"]
     end
 
     subgraph PersistenceLayer ["Persistence Layer"]
         UserRepo[("UserRepository\n(users table)")]
         AppRepo[("JobApplicationRepository\n(job_applications table)")]
-        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1-V4)")]
+        PostgreSQL[("PostgreSQL 16 Database\n(Flyway Migrations V1-V5)")]
     end
 
-    subgraph ExternalMail ["Mail Delivery"]
-        SMTP["SMTP Server\n(Mailtrap / Gmail)"]
+    subgraph ExternalMail ["Mail Services"]
+        SMTP["SMTP Server\n(Mailtrap / Gmail :587)"]
+        IMAP["IMAP Server\n(Gmail / Mailbox :993)"]
     end
 
     Client -->|Public Static Files, Health, or Auth| AuthCtrl
@@ -51,6 +56,7 @@ flowchart TD
     JwtFilter -->|Routes Request| AppCtrl
     JwtFilter -->|Routes Request| AnalyticsCtrl
     JwtFilter -->|Routes Request| UserCtrl
+    JwtFilter -->|Routes Request| SyncCtrl
     
     AuthCtrl --> AuthService
     AuthService --> UserRepo
@@ -69,9 +75,18 @@ flowchart TD
     AnalyticsService --> SecurityCtx
     AnalyticsService --> AppRepo
 
+    SyncCtrl --> EmailSyncService
+    EmailSyncService --> SecurityCtx
+    EmailSyncService --> UserRepo
+    EmailSyncService --> ImapClient
+    EmailSyncService --> EmailParserService
+    EmailSyncService --> StateMachine
+    EmailSyncService --> AppRepo
+    ImapClient -->|Fetch via TLS SSL 993| IMAP
+
     ReminderService --> AppRepo
     ReminderService --> EmailService
-    EmailService --> SMTP
+    EmailService -->|Dispatch via STARTTLS 587| SMTP
     
     UserRepo --> PostgreSQL
     AppRepo --> PostgreSQL
@@ -125,6 +140,13 @@ The state machine is implemented via an immutable `Map<ApplicationStatus, Set<Ap
 
 Every API response embeds `allowedNextStatuses: [...]`, enabling client frontends to dynamically render next actions without duplicating transition rules in JavaScript.
 
+### State Machine Enforcement during Email Synchronization
+When incoming status updates are parsed from mailbox emails (e.g. interview invitations, offer letters, or rejection notices), `EmailSyncService` strictly validates the proposed status change through `ApplicationStateMachine.isValidTransition(existing.getStatus(), parsedStatus)`:
+- If a candidate has already progressed to the `INTERVIEW` stage and an earlier automated acknowledgment email arrives with `APPLIED` status, the transition is rejected to prevent regressing application state.
+- Terminal statuses (`ACCEPTED`, `REJECTED`, `WITHDRAWN`) cannot transition to any other status.
+- Valid forward transitions update the status, refresh `lastUpdated`, and append chronological audit notes.
+- If an email status cannot advance the pipeline (e.g. redundant acknowledgment or lateral event), the current state is preserved and informative notes are recorded without corrupting candidate history.
+
 ---
 
 ## 3. Automated Reminder Pipeline
@@ -155,18 +177,89 @@ flowchart TD
 
 ---
 
-## 4. Frontend Architecture
+## 4. Automated Mailbox Synchronization Pipeline
 
-The frontend is implemented as a lightweight Single Page Application (SPA) without third-party frameworks:
-- **Location**: `src/main/resources/static/` (`index.html`, `styles.css`, `app.js`).
-- **Routing**: Hash-based routing (`#login`, `#register`, `#dashboard`) with immediate redirection if unauthenticated.
-- **Single Service Integration**: Served directly from Spring Boot alongside the REST API, avoiding CORS configuration issues across cloud deployments.
-- **State Management**: Lightweight client-side application caching for real-time search and filter without redundant network queries.
-- **Security**: JWT stored in `localStorage` for simple client persistence, sent via standard `Authorization: Bearer <token>` headers.
+HuntLog includes an automated background and on-demand mailbox synchronization engine powered by Jakarta Mail IMAP over TLS/SSL (port 993) and heuristic applicant tracking system (ATS) parsing.
+
+```mermaid
+flowchart TD
+    Trigger(["Trigger: User Click 'Sync Emails' OR Hourly Background Scheduler"]) --> CheckUser{"Email Sync Enabled\nAND Host/User/Pass Present?"}
+    CheckUser -- No --> Skip["Skip sync or return 400 Bad Request with setup instructions"]
+    CheckUser -- Yes --> ConnectIMAP["ImapClient: Connect via IMAP over SSL/TLS (port 993)"]
+    
+    ConnectIMAP --> FetchMessages["Fetch unseen or recent messages\n(Since lastEmailSyncedAt OR last 14 days default window)"]
+    FetchMessages --> ParseLoop["Iterate through fetched emails"]
+    
+    ParseLoop --> Parser["EmailParserService: Extract company, role, status, and job URL\n(Pattern matching: Greenhouse, Lever, Workday, HiBob, Keka, Gem, iCIMS, HackerRank, Ashby, Direct)"]
+    
+    Parser --> MatchCheck{"Job Application Detected?"}
+    MatchCheck -- No --> NextEmail["Continue to next email"]
+    MatchCheck -- Yes --> FindExisting["Query existing applications for (userId, company)"]
+    
+    FindExisting --> ExistingCheck{"Matching Application Found?"}
+    
+    ExistingCheck -- Yes --> ValidTransition{"ApplicationStateMachine.isValidTransition(currentStatus, parsedStatus)?"}
+    ValidTransition -- Yes --> UpdateApp["Update Status, set lastUpdated, append sync notes"]
+    ValidTransition -- No --> PreserveApp["Preserve current status (prevent pipeline regression), append sync notes"]
+    
+    ExistingCheck -- No --> IsApplied{"Parsed Status == APPLIED?"}
+    IsApplied -- Yes --> CreateApp["Create new JobApplication (source = EMAIL_SYNC, status = APPLIED)"]
+    IsApplied -- No --> NextEmail
+    
+    UpdateApp --> Checkpoint["Update lastEmailSyncedAt to latest processed message timestamp"]
+    PreserveApp --> Checkpoint
+    CreateApp --> Checkpoint
+    NextEmail --> Checkpoint
+    
+    Checkpoint --> SummaryResult["Return SyncSummaryResponse (scanned, created, updated)"]
+```
+
+### Heuristic ATS Parsing Engine (`EmailParserService`)
+The parser inspects email headers (`From`, `Subject`) and body contents (plain text and HTML) to classify messages and extract metadata:
+
+| ATS Provider / Source | Detection Signature | Extracted Metadata | Default Classified Status |
+|---|---|---|---|
+| **Greenhouse** | `no-reply@greenhouse.io` or `greenhouse-mail.io` | Company and Role from subject patterns (`Application for <Role> at <Company>`) | `APPLIED` / `INTERVIEW` / `REJECTED` |
+| **Lever** | `no-reply@hire.lever.co` or `jobs.lever.co` | Company, Role, and Lever application URLs | `APPLIED` / `INTERVIEW` / `REJECTED` |
+| **Workday** | `myworkday.com` or `myworkdayjobs.com` | Company and Role from Workday candidate notifications | `APPLIED` / `INTERVIEW` |
+| **HiBob** | `hibob.com` or `bob-notifications` | Company, Role, and candidate portal links | `APPLIED` / `INTERVIEW` |
+| **Keka** | `keka.com` or `kekacareers` | Company, Role, and assessment links | `APPLIED` / `INTERVIEW` |
+| **Gem** | `gem.com` or `gem-mail` | Sponsoring company and recruiter outreach position | `APPLIED` / `INTERVIEW` |
+| **iCIMS** | `icims.com` candidate center | Company, Role, and candidate submission reference | `APPLIED` |
+| **HackerRank** | `hackerrank.com` assessment invitations | Company inviting the candidate, assessment role | `INTERVIEW` (Technical Screen) |
+| **Ashby** | `ashbyhq.com` or `jobs.ashbyhq.com` | Company, Role, and Ashby application confirmation | `APPLIED` / `INTERVIEW` |
+| **Direct Recruiting** | Subject patterns: `Thank you for applying to <Company>`, `Interview with <Company>` | Company, Role, and status keywords | Dynamic based on keywords |
+
+### Status Classification Rules
+- **`APPLIED`**: Matched when emails contain confirmation phrases (`thank you for applying`, `application received`, `we have received your application`, `application submitted`).
+- **`INTERVIEW`**: Matched when emails contain interview or evaluation triggers (`invitation to interview`, `coding challenge`, `technical assessment`, `phone screen`, `schedule interview`, `availability for a call`).
+- **`REJECTED`**: Matched when emails contain adverse decisions (`unfortunately`, `not moving forward`, `other candidates whose qualifications`, `decided to pursue other applicants`).
+- **`OFFER`**: Matched when emails convey formal job proposals (`offer of employment`, `job offer`, `congratulations on your offer`).
+
+### Deduplication and Checkpoint Guarantees
+- **Exact and Normalized Matching**: Matches incoming emails against existing user applications by company name and normalized title (lowercased, punctuation removed).
+- **Forward-Only Pipeline Safety**: An incoming `APPLIED` email received after an interview invitation was already logged will not regress the application status.
+- **Persistent Timestamp Checkpoint**: Each user record stores `last_email_synced_at`. Subsequent scans only fetch messages received after this timestamp, reducing network traffic and eliminating duplicate processing.
+- **Auditable Tracking**: Applications created or updated via mailbox synchronization set `source = 'EMAIL_SYNC'`, displayed as a distinct badge in the UI.
 
 ---
 
-## 5. Analytics and Metrics Pipeline
+## 5. Frontend Architecture
+
+The frontend is implemented as a lightweight Single Page Application (SPA) without third-party frameworks:
+- **Location**: `src/main/resources/static/` (`index.html`, `styles.css`, `app.js`).
+- **Routing**: Hash-based routing (`#login`, `#register`, `#dashboard`, `#view-settings`) with immediate redirection if unauthenticated.
+- **Email Sync Controls**:
+  - **Top Navigation Action**: Instant "Sync Emails" button triggering `POST /api/v1/sync/emails` with spinning animation and status feedback.
+  - **Settings Panel**: Dedicated "Email Auto-Sync" section allowing users to toggle background syncing, specify IMAP server host and port (defaulting to `imap.gmail.com:993`), provide Google App Passwords, inspect last sync timestamp, and run manual scans.
+  - **Visual Badges**: Distinguishes manual submissions (`MANUAL`) from automated imports (`EMAIL_SYNC`) with distinct metadata badges.
+- **Single Service Integration**: Served directly from Spring Boot alongside the REST API, avoiding CORS configuration issues across cloud deployments.
+- **State Management**: Lightweight client-side application caching for real-time search and filter without redundant network queries.
+- **Security**: JWT stored in `localStorage` for simple client persistence, sent via standard `Authorization: Bearer <token>` headers. IMAP passwords are never exposed to the client; `hasImapPassword: true` is returned instead.
+
+---
+
+## 6. Analytics and Metrics Pipeline
 
 The `AnalyticsService` executes user-scoped aggregate queries to compute real-time metrics:
 
@@ -177,7 +270,7 @@ The `AnalyticsService` executes user-scoped aggregate queries to compute real-ti
 
 ---
 
-## 6. Security and Multi-Tenant Data Isolation
+## 7. Security and Multi-Tenant Data Isolation
 
 ### Stateless Authentication
 - **Algorithm**: HMAC-SHA512 (`HS512`) with 256+ bit secret keys.
@@ -210,7 +303,7 @@ Attempting to access or modify another user's application produces a `404 Not Fo
 
 ---
 
-## 7. Database Schema and Migrations
+## 8. Database Schema and Migrations
 
 Database schema versioning is managed via Flyway migrations under `src/main/resources/db/migration`:
 
@@ -226,6 +319,12 @@ erDiagram
         VARCHAR(255) password "NOT NULL (BCrypt hash)"
         VARCHAR(100) name "NOT NULL"
         BOOLEAN email_reminders_enabled "NOT NULL, DEFAULT TRUE"
+        BOOLEAN email_sync_enabled "NOT NULL, DEFAULT FALSE"
+        VARCHAR(255) imap_host "NULLABLE, DEFAULT 'imap.gmail.com'"
+        INTEGER imap_port "NULLABLE, DEFAULT 993"
+        VARCHAR(255) imap_username "NULLABLE"
+        VARCHAR(255) imap_password "NULLABLE"
+        TIMESTAMP last_email_synced_at "NULLABLE"
         TIMESTAMP created_at "NOT NULL"
     }
 
@@ -235,6 +334,7 @@ erDiagram
         VARCHAR(100) company "NOT NULL"
         VARCHAR(100) role "NOT NULL"
         VARCHAR(20) status "NOT NULL"
+        VARCHAR(20) source "NOT NULL, DEFAULT 'MANUAL'"
         DATE applied_date "NOT NULL"
         TIMESTAMP last_updated "NULLABLE"
         VARCHAR(500) job_url "NULLABLE"
@@ -248,10 +348,11 @@ erDiagram
 - `V2__create_users_and_link_applications.sql`: Creates `users` table, adds `user_id` foreign key constraint, and indexes `idx_job_applications_user_id`.
 - `V3__add_email_preferences.sql`: Adds `email_reminders_enabled` boolean column to `users` table for user notification controls.
 - `V4__add_reminder_tracking.sql`: Adds `last_reminder_sent_at` to prevent duplicate reminder emails.
+- `V5__add_email_sync_settings.sql`: Adds mailbox synchronization columns (`email_sync_enabled`, `imap_host`, `imap_port`, `imap_username`, `imap_password`, `last_email_synced_at`) to the `users` table, adds `source` column to `job_applications` (distinguishing `MANUAL` vs `EMAIL_SYNC`), and creates performance index `idx_job_applications_user_company` on `(user_id, company)`.
 
 ---
 
-## 8. Global Exception and Error Handling
+## 9. Global Exception and Error Handling
 
 All controller errors are processed by `GlobalExceptionHandler` and returned in a standard RFC 7807 format:
 
@@ -263,3 +364,4 @@ All controller errors are processed by `GlobalExceptionHandler` and returned in 
 | `InvalidStatusTransitionException` | `422 Unprocessable Entity` | Illegal state machine status transition |
 | `MethodArgumentNotValidException` | `400 Bad Request` | DTO validation failure (e.g. invalid email) |
 | `HttpMessageNotReadableException` | `400 Bad Request` | Malformed JSON in request body |
+| `IllegalStateException` | `400 Bad Request` | Mailbox synchronization is disabled or IMAP credentials are not configured |

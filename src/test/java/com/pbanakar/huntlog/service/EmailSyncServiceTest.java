@@ -196,6 +196,49 @@ class EmailSyncServiceTest {
     }
 
     @Test
+    @DisplayName("syncEmails refines General Application role and company name on subsequent email")
+    void testSyncEmailsRefinesGeneralApplicationRole() throws Exception {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+
+        JobApplication placeholderApp = new JobApplication();
+        placeholderApp.setId(600L);
+        placeholderApp.setUser(testUser);
+        placeholderApp.setCompany("Visa People Team");
+        placeholderApp.setRole("General Application");
+        placeholderApp.setStatus(ApplicationStatus.APPLIED);
+
+        List<JobApplication> existingList = new ArrayList<>(List.of(placeholderApp));
+        when(jobApplicationRepository.findByUserId(USER_ID)).thenReturn(existingList);
+
+        RawEmailMessage rawMsg = new RawEmailMessage(
+                "msg-4",
+                "Visa People Team 2 <no-reply@visa.com>",
+                "Visa - Application Update",
+                "Thank you for your interest in the Intern position.",
+                LocalDate.of(2026, 11, 18)
+        );
+        when(imapClient.fetchMessages(anyString(), anyInt(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(List.of(rawMsg));
+
+        ParsedEmailApplication parsed = new ParsedEmailApplication();
+        parsed.setRelevant(true);
+        parsed.setCompany("Visa");
+        parsed.setPosition("Intern");
+        parsed.setStatus(ApplicationStatus.APPLIED);
+        parsed.setEmailDate(LocalDate.of(2026, 11, 18));
+        when(emailParserService.parse(any(), any(), any(), any())).thenReturn(parsed);
+
+        EmailSyncSummary summary = emailSyncService.syncEmailsForUser(USER_ID);
+
+        assertThat(summary.getCreatedCount()).isEqualTo(0);
+        assertThat(summary.getUpdatedCount()).isEqualTo(1);
+        assertThat(placeholderApp.getRole()).isEqualTo("Intern");
+        assertThat(placeholderApp.getCompany()).isEqualTo("Visa");
+        assertThat(placeholderApp.getNotes()).contains("Role refined from \"General Application\" to \"Intern\"");
+        verify(jobApplicationRepository).save(placeholderApp);
+    }
+
+    @Test
     @DisplayName("scheduledSync runs for all users with emailSyncEnabled true")
     void testScheduledSyncRunsForEnabledUsers() throws Exception {
         User enabledUser = new User();

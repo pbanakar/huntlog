@@ -123,5 +123,113 @@ class EmailParserServiceTest {
 
         assertThat(result.isRelevant()).isFalse();
     }
+
+    @Test
+    @DisplayName("Filter out Apache mailing list developer discussions")
+    void testFilterOutApacheMailingList() {
+        String from = "Hongshun <dev@flink.apache.org>";
+        String subject = "[DISCUSS] FIP-60: Extend Schema Evolution with Drop, Rename, Type Widening";
+        String body = "Hi Prajwal, Thank you for reviewing the proposal...";
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, LocalDate.now());
+
+        assertThat(result.isRelevant()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Parse Honeywell application confirmation with requisition ID")
+    void testParseHoneywellApplication() {
+        String from = "Human Resources <honeywell@myworkday.com>";
+        String subject = "Regarding your Honeywell Application for Intern Bachelors Software Eng - 160491";
+        String body = "Dear Prajwal, Thank you for your interest in the Intern Bachelors Software Eng - 160491 position at Honeywell. Your application has been received.";
+        LocalDate date = LocalDate.of(2026, 11, 20);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Honeywell");
+        assertThat(result.getPosition()).contains("Intern Bachelors Software Eng - 160491");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+    }
+
+    @Test
+    @DisplayName("Parse Cloudera application interest email")
+    void testParseClouderaApplication() {
+        String from = "cloudera <no-reply@cloudera.com>";
+        String subject = "Thank you for your interest for the Software Engineering Intern - Cloud and Platform Systems 261521 position with Cloudera";
+        String body = "Dear Prajwal, Thank you for your interest for the Software Engineering Intern - Cloud and Platform Systems 261521 position with Cloudera. We have received your application.";
+        LocalDate date = LocalDate.of(2026, 11, 19);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Cloudera");
+        assertThat(result.getPosition()).contains("Software Engineering Intern - Cloud and Platform Systems 261521");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+    }
+
+    @Test
+    @DisplayName("Parse Chainlink Labs application email")
+    void testParseChainlinkLabsApplication() {
+        String from = "Chainlink Labs Hiring Team <no-reply@greenhouse.io>";
+        String subject = "Thank you for applying at Chainlink Labs";
+        String body = "Hi Prajwal, Thank you for taking the time to apply for the Data Platform Engineer position at Chainlink Labs!";
+        LocalDate date = LocalDate.of(2026, 11, 18);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Chainlink Labs");
+        assertThat(result.getPosition()).contains("Data Platform Engineer");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+    }
+
+    @Test
+    @DisplayName("Parse Humana update email with requisition role")
+    void testParseHumanaApplication() {
+        String from = "humana <no-reply@humana.com>";
+        String subject = "An Update on Your Humana Application: R-434927 Data Engineer";
+        String body = "Hi Prajwal, Thank you for taking the time to apply for R-434927 Data Engineer at Humana.";
+        LocalDate date = LocalDate.of(2026, 11, 18);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Humana");
+        assertThat(result.getPosition()).contains("R-434927 Data Engineer");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+    }
+
+    @Test
+    @DisplayName("Parse Visa application update and clean company name")
+    void testParseVisaApplicationUpdate() {
+        String from = "Visa People Team 2 <no-reply@visa.com>";
+        String subject = "Visa - Application Update";
+        String body = "Dear Prajwal, Thank you for your interest in the Intern position. Unfortunately we are not moving forward with your candidacy at this time.";
+        LocalDate date = LocalDate.of(2026, 11, 18);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Visa");
+        assertThat(result.getPosition()).contains("Intern");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
+    }
+
+    @Test
+    @DisplayName("Parse Cisco application status update")
+    void testParseCiscoApplicationUpdate() {
+        String from = "Entry-level Talent Recruiting <no-reply@cisco.com>";
+        String subject = "Entry-level Talent Recruiting - Cisco Application Status Update";
+        String body = "Hello Prajwal, Thank you for applying to the Software QA Engineer position at Cisco. We are currently reviewing applications.";
+        LocalDate date = LocalDate.of(2026, 11, 18);
+
+        ParsedEmailApplication result = parser.parse(from, subject, body, date);
+
+        assertThat(result.isRelevant()).isTrue();
+        assertThat(result.getCompany()).isEqualTo("Cisco");
+        assertThat(result.getPosition()).contains("Software QA Engineer");
+        assertThat(result.getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+    }
 }
 

@@ -21,12 +21,39 @@ public class ImapClient {
     private static final List<String> SEARCH_KEYWORDS = List.of(
             "application",
             "applied",
+            "applying",
             "interview",
             "assessment",
             "status",
             "offer",
             "career",
-            "recruiting"
+            "careers",
+            "recruiting",
+            "recruiter",
+            "intern",
+            "internship",
+            "position",
+            "role",
+            "opportunity",
+            "opportunities",
+            "interest",
+            "hiring",
+            "invitation",
+            "job",
+            "update"
+    );
+
+    private static final List<String> SENDER_KEYWORDS = List.of(
+            "greenhouse",
+            "lever",
+            "workday",
+            "icims",
+            "ashby",
+            "smartrecruiters",
+            "keka",
+            "hibob",
+            "recruiting",
+            "careers"
     );
 
     /**
@@ -124,6 +151,9 @@ public class ImapClient {
         SearchTerm term = new SubjectTerm(SEARCH_KEYWORDS.get(0));
         for (int i = 1; i < SEARCH_KEYWORDS.size(); i++) {
             term = new OrTerm(term, new SubjectTerm(SEARCH_KEYWORDS.get(i)));
+        }
+        for (String sender : SENDER_KEYWORDS) {
+            term = new OrTerm(term, new FromStringTerm(sender));
         }
         return term;
     }

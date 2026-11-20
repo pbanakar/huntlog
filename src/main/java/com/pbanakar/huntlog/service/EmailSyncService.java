@@ -83,12 +83,12 @@ public class EmailSyncService {
                 : 993;
 
         LocalDate sinceDate = user.getLastEmailSyncedAt() != null
-                ? user.getLastEmailSyncedAt().toLocalDate()
+                ? user.getLastEmailSyncedAt().toLocalDate().minusDays(7)
                 : LocalDate.now().minusDays(daysToScan);
 
         List<RawEmailMessage> rawMessages;
         try {
-            rawMessages = imapClient.fetchMessages(host, port, username, password, sinceDate, 50);
+            rawMessages = imapClient.fetchMessages(host, port, username, password, sinceDate, 150);
         } catch (Exception ex) {
             logger.error("Failed to connect or fetch emails from IMAP for user {}: {}", user.getEmail(), ex.getMessage());
             throw new RuntimeException("Failed to connect to mail server: " + ex.getMessage(), ex);
@@ -163,6 +163,19 @@ public class EmailSyncService {
     private boolean processExistingApplication(JobApplication app, ParsedEmailApplication parsed, EmailSyncSummary summary) {
         boolean modified = false;
 
+        // Upgrade placeholder "General Application" to the specific role
+        if ("General Application".equalsIgnoreCase(app.getRole()) && parsed.getPosition() != null && !"General Application".equalsIgnoreCase(parsed.getPosition())) {
+            String oldRole = app.getRole();
+            app.setRole(parsed.getPosition());
+            if (parsed.getCompany() != null && !parsed.getCompany().isBlank() && !parsed.getCompany().equalsIgnoreCase(app.getCompany())) {
+                app.setCompany(parsed.getCompany());
+            }
+            appendNote(app, "Role refined from \"" + oldRole + "\" to \"" + parsed.getPosition() + "\" via email sync");
+            summary.setUpdatedCount(summary.getUpdatedCount() + 1);
+            summary.addDetail("Refined role: " + app.getCompany() + " — " + parsed.getPosition());
+            modified = true;
+        }
+
         if (app.getStatus() != parsed.getStatus()) {
             Set<ApplicationStatus> allowed = applicationStateMachine.getAllowedTransitions(app.getStatus());
 
@@ -218,17 +231,28 @@ public class EmailSyncService {
         return existing.stream()
                 .filter(app -> {
                     String existingCompany = app.getCompany().trim().toLowerCase();
-                    if (!existingCompany.equals(normCompany) && !existingCompany.contains(normCompany) && !normCompany.contains(existingCompany)) {
+                    if (!isCompanyMatch(existingCompany, normCompany)) {
                         return false;
                     }
 
                     String existingRole = app.getRole().trim().toLowerCase();
+                    if (existingRole.equals("general application") || normRole.equals("general application")) {
+                        return true;
+                    }
+
                     return existingRole.equals(normRole)
                             || existingRole.contains(normRole)
-                            || normRole.contains(existingRole)
-                            || normRole.equals("general application");
+                            || normRole.contains(existingRole);
                 })
                 .findFirst();
+    }
+
+    private boolean isCompanyMatch(String c1, String c2) {
+        if (c1.equals(c2)) return true;
+        if (c1.length() >= 4 && c2.length() >= 4) {
+            return c1.contains(c2) || c2.contains(c1);
+        }
+        return false;
     }
 
     private void appendNote(JobApplication app, String newNote) {
